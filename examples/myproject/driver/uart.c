@@ -37,14 +37,14 @@ enum {
 
 typedef struct _os_event_ {
     uint32 event;
-    uint8 buf[128];
+    uint8 buf[16];
     uint32 len;
 } os_event_t;
 
 xTaskHandle xUartTaskHandle;
 xQueueHandle xQueueUart;
 
-LOCAL STATUS
+STATUS
 uart_tx_one_char(uint8 uart, uint8 TxChar)
 {
     while (true) {
@@ -59,7 +59,7 @@ uart_tx_one_char(uint8 uart, uint8 TxChar)
     return OK;
 }
 
-void
+LOCAL void
 uart1_write_char(char c)
 {
     if (c == '\n') {
@@ -71,7 +71,7 @@ uart1_write_char(char c)
     }
 }
 
-void
+LOCAL void
 uart0_write_char(char c)
 {
     if (c == '\n') {
@@ -359,7 +359,7 @@ uart0_rx_intr_handler(void *para)
     uint8 uart_no = UART0;//UartDev.buff_uart_no;
     uint8 fifo_len = 0;
     uint8 buf_idx = 0;
-    uint8 fifo_tmp[128] = {0};
+    uint8 fifo_tmp[16] = {0};
     os_event_t e;
     portBASE_TYPE xHigherPriorityTaskWoken;
 
@@ -439,7 +439,7 @@ uart_init_new(void)
     UART_SetPrintPort(UART1);
 
     xQueueUart = xQueueCreate(32, sizeof(os_event_t));
-    xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
+    //xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 
     UART_intr_handler_register(uart0_rx_intr_handler, NULL);
     ETS_UART_INTR_ENABLE();

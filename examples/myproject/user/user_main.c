@@ -26,6 +26,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 
 #include "lwip/sockets.h"
 #include "lwip/dns.h"
@@ -35,16 +36,32 @@
 #include "spiffs_test_params.h"
 #include "uart.h"
 #include "gpio.h"
+#include "lg_tty.h"
 
 #define DEVICE_TYPE 		"gh_9e2cff3dfa51" //wechat public number
 #define DEVICE_ID 			"122475" //model ID
 
 #define DEFAULT_LAN_PORT 	12476
 
+enum {
+    UART_EVENT_RX_CHAR,
+    UART_EVENT_MAX
+};
+
+typedef struct _os_event_ {
+    uint32 event;
+    uint8 buf[128];
+    uint32 len;
+} os_event_t;
+
+
 LOCAL esp_udp ssdp_udp;
 LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
 LOCAL os_timer_t keypress_timer;
+extern xTaskHandle xUartTaskHandle;
+extern xQueueHandle xQueueUart;
+
 
 
 uint8  lan_buf[200];
@@ -321,6 +338,44 @@ key_intr_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+LOCAL void
+uart_task(void *pvParameters)
+{
+    int i;
+    os_event_t e;
+    portTickType delay = portMAX_DELAY;
+    LGTTY_RECVS rcvs;
+    char *ptr = rcvs.recv_buf;
+
+    rcvs.recv_len = 0;
+
+    for (;;) {
+        if (xQueueReceive(xQueueUart, (void *)&e, delay)) {
+            switch (e.event) {
+                case UART_EVENT_RX_CHAR:
+                    printf("len: %d\n", e.len);
+                    /* add to buffer */
+                    ptr = rcvs.recv_buf + rcvs.recv_len;
+                    memcpy(ptr, e.buf, e.len);
+                    rcvs.recv_len += e.len;
+                    for(i = 0; i < e.len; i++)
+                        printf("%c", e.buf[i]);
+                    delay = 10/portTICK_RATE_MS;
+                    break;
+
+                default:
+                    break;
+            }
+        } else {
+            printf("receive timeout!\n");
+            delay = portMAX_DELAY;
+
+            lgtty_read(0, &rcvs);
+        }
+    }
+
+    vTaskDelete(NULL);
+}
 
 /******************************************************************************
  * FunctionName : user_rf_cal_sector_set
@@ -418,10 +473,7 @@ user_init(void)
 
     printf("SDK version:%s\n", system_get_sdk_version());
 
-	uart0_write_char('a');
-	uart0_write_char('b');
-	uart0_write_char('c');
-	uart0_write_char('d');
+	//lgtty_write(0, "Hello World!\n", 13);
 
 	key_init();
 
@@ -431,6 +483,7 @@ user_init(void)
 	
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
-	xTaskCreate(key_intr_task, "key_intr_task", 256, NULL, 1, &key_task_handle);
+	xTaskCreate(key_intr_task, "key_intr_task", 256, NULL, 1, &key_task_handle);    
+    xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 
