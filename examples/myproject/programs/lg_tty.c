@@ -452,10 +452,11 @@ int lgtty_read(int fd, LGTTY_RECVS *rcvs)
 	}
 
 _RFS_END:
-	if (rcvs->recv_len > 0 && ((unsigned long)rcvs->recv_buf != (unsigned long)buffer)) {
+    rcvs->recv_len = 0;
+	/*if (rcvs->recv_len > 0 && ((unsigned long)rcvs->recv_buf != (unsigned long)buffer)) {
 		memmove(rcvs->recv_buf, buffer, rcvs->recv_len);
 		ULOG("recv from ttyfd, remain data len=%d\n", rcvs->recv_len);
-	}
+	}*/
 
 	return rfs_ret;
 }

@@ -341,7 +341,7 @@ key_intr_task(void *pvParameters)
 LOCAL void
 uart_task(void *pvParameters)
 {
-    int i;
+    int seq = 0;
     os_event_t e;
     portTickType delay = portMAX_DELAY;
     LGTTY_RECVS rcvs;
@@ -353,24 +353,20 @@ uart_task(void *pvParameters)
         if (xQueueReceive(xQueueUart, (void *)&e, delay)) {
             switch (e.event) {
                 case UART_EVENT_RX_CHAR:
-                    printf("len: %d\n", e.len);
-                    /* add to buffer */
                     ptr = rcvs.recv_buf + rcvs.recv_len;
                     memcpy(ptr, e.buf, e.len);
                     rcvs.recv_len += e.len;
-                    for(i = 0; i < e.len; i++)
-                        printf("%c", e.buf[i]);
-                    delay = 10/portTICK_RATE_MS;
+                    delay = 40/portTICK_RATE_MS;
                     break;
 
                 default:
                     break;
             }
         } else {
-            printf("receive timeout!\n");
+            seq++;
+            printf("seq: %d\n", seq);
             delay = portMAX_DELAY;
-
-            lgtty_read(0, &rcvs);
+			lgtty_read(0, &rcvs);
         }
     }
 
@@ -473,7 +469,7 @@ user_init(void)
 
     printf("SDK version:%s\n", system_get_sdk_version());
 
-	//lgtty_write(0, "Hello World!\n", 13);
+	lgtty_write(0, "Hello World!\n", 13);
 
 	key_init();
 

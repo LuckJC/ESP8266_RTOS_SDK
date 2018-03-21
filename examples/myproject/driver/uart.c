@@ -37,7 +37,7 @@ enum {
 
 typedef struct _os_event_ {
     uint32 event;
-    uint8 buf[16];
+    uint8 buf[128];
     uint32 len;
 } os_event_t;
 
@@ -359,7 +359,7 @@ uart0_rx_intr_handler(void *para)
     uint8 uart_no = UART0;//UartDev.buff_uart_no;
     uint8 fifo_len = 0;
     uint8 buf_idx = 0;
-    uint8 fifo_tmp[16] = {0};
+    uint8 fifo_tmp[128] = {0};
     os_event_t e;
     portBASE_TYPE xHigherPriorityTaskWoken;
 
