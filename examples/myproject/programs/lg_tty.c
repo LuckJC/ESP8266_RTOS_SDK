@@ -1,19 +1,8 @@
 #include "esp_common.h"
 #include "lg_tty.h"
 
-#include<stdio.h>      
-//#include<stdlib.h>     
-//#include<unistd.h>     
-//#include<sys/types.h>  
-//#include<sys/stat.h>   
-//#include<fcntl.h>      
-//#include<termios.h>    
-//#include<errno.h>      
+#include<stdio.h>    
 #include<string.h>
-//#include <sys/ioctl.h>
-
-//#include <sys/select.h>
-//#include <sys/time.h>
 #include "uart.h"
 
 TTY_MOD_STATE lgtty_state = ESTAT_INIT;
@@ -28,6 +17,8 @@ int lgtty_write(int fd, const void *buffer, uint8 len)
 	for(i = 0; i < len; i++) {
 		uart_tx_one_char(UART1, buf[i]);
 	}
+
+    return len;
 }
 
 static int check_recv(const char *buffer, int msglen);
@@ -276,62 +267,11 @@ static int dev_frame_process(const char *buffer, int msglen)
 	return 0;
 }
 
-
-
 #define ID_LEN  3
 #define DEV_FRAME_LEN  7
 
 // equal the minimum cmd frame length
 #define MIN_FRAME_LEN  (ID_LEN+3)
-
-static unsigned long long last_held_time = 0;
-
-static void time_to_ms(unsigned long long *value)
-{
-	;
-}
-
-// 1. when recv tty timeout, clear the rest data in buffer
-void lgtty_timeout_callback(int fd, LGTTY_RECVS *rcvs)
-{
-	//int i = 0;
-	char *buffer = rcvs->recv_buf;
-
-	do {
-		if (last_held_time) {
-			unsigned long long curr_time;
-			time_to_ms(&curr_time);
-			if (uint_before(last_held_time+1000, curr_time) ) {
-				// If more than 40 milliseconds in two packages
-				ULOG("rest %d bytes, because timeout, %llu %llu\n", rcvs->recv_len, curr_time, last_held_time);
-				break;
-			}
-			//return;
-		} 
-		
-		return;
-	} while (0);
-
-	ULOG("begin lgtty_timeout_callback len=%d !!\n", rcvs->recv_len);
-	while (rcvs->recv_len > 0) {
-		buffer = (rcvs->recv_buf+1);
-		rcvs->recv_len --;
-		if (rcvs->recv_len > 0) {
-			ULOG("this, memmove %d len to recv_buff\n", rcvs->recv_len);
-			memmove(rcvs->recv_buf, buffer, rcvs->recv_len);
-		}
-		
-		// check the rest buffer
-		if (rcvs->recv_len < MIN_FRAME_LEN) {
-			ULOG("the rest recv_len =%d, is not enough %d, drop it !!\n", rcvs->recv_len, MIN_FRAME_LEN);
-			rcvs->recv_len = 0;
-			return;
-		}
-
-		lgtty_read(fd, rcvs);
-	}
-	ULOG("end lgtty_timeout_callback len=%d !!\n", rcvs->recv_len);
-}
 
 int lgtty_read(int fd, LGTTY_RECVS *rcvs)
 {
@@ -525,13 +465,13 @@ int lgtty_matching_rate(int fd)
 		// Switch to matching rate mode
 		ret = switch_matching_rate(fd);
 		if (0 == ret) goto SUCC_MATCH_RATE;
-		usleep(40*1000);
+        vTaskDelay(40 / portTICK_RATE_MS);
 	}
 	return -1;
 
 SUCC_MATCH_RATE:	
 	lgtty_state = ESTAT_MATCH_RATE;
-	usleep(5*1000*1000);
+    vTaskDelay(5000 / portTICK_RATE_MS);
 
 	// Recovery to normal work mode
 	trycnt = 0;
@@ -541,7 +481,7 @@ SUCC_MATCH_RATE:
 			lgtty_state = ESTAT_MATCH_WORK;
 			return 0;
 		}
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 	return -2;
 }
@@ -557,7 +497,7 @@ int lgtty_work_mode(int fd)
 			lgtty_state = ESTAT_MATCH_WORK;
 			return 0;
 		}
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 
 	return -2;
@@ -581,7 +521,7 @@ int lgtty_check_cmd(int change_state, int fd, unsigned char value)
 			 goto _CHECK_RCV;
 		}
 
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 
 	ULOG("lgtty send check cmd failed ret = %d\n", ret);
@@ -626,7 +566,7 @@ int lgtty_modver_cmd(int change_state, int fd, unsigned char value)
 			 goto _CHECK_RCV;
 		}
 
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 
 	ULOG("lgtty send modver cmd failed ret = %d\n", ret);
@@ -677,7 +617,7 @@ int lgtty_test_cmd(int change_state, int fd, int model, unsigned char *out, int 
 			 goto _CHECK_RCV;
 		}
 
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 
 	ULOG("lgtty send test cmd failed ret = %d\n", ret);
@@ -721,7 +661,7 @@ int lgtty_ID_cmd(int change_state, int fd, int op, unsigned char *out, int vlen)
 			 goto _CHECK_RCV;
 		}
 
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 
 	ULOG("lgtty send ID cmd failed ret = %d\n", ret);
@@ -786,7 +726,7 @@ int lgtty_channel_cmd(int change_state, int fd, int op, int channel)
 			 goto _CHECK_RCV;
 		}
 
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 
 	ULOG("lgtty send ID cmd failed ret = %d\n", ret);
@@ -833,7 +773,7 @@ int lgtty_io_cmd(int change_state, int fd, int op, unsigned char opcode, unsigne
 			 goto _CHECK_RCV;
 		}
 
-		usleep(40*1000);
+		vTaskDelay(40 / portTICK_RATE_MS);
 	}
 
 	ULOG("lgtty send IO cmd failed ret = %d\n", ret);
