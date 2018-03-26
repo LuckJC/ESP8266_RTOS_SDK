@@ -37,9 +37,12 @@
 #include "uart.h"
 #include "gpio.h"
 #include "lg_tty.h"
+#include "http.h"
 
 #define DEVICE_TYPE 		"gh_9e2cff3dfa51" //wechat public number
 #define DEVICE_ID 			"122475" //model ID
+
+#define TEST_CONNECT_OK  "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%s&time=%s"
 
 #define DEFAULT_LAN_PORT 	12476
 
@@ -239,6 +242,7 @@ void scan_done(void *arg, STATUS status)
 
 void wifi_handle_event_cb(System_Event_t	*evt)
 {
+    char *rst_buf;
 	printf("event %x\n", evt->event_id);
 
 	switch (evt->event_id) {
@@ -266,7 +270,13 @@ void wifi_handle_event_cb(System_Event_t	*evt)
 			IP2STR(&evt->event_info.got_ip.mask),
 			IP2STR(&evt->event_info.got_ip.gw));
 		printf("\n");		
-        user_conn_init();
+        //user_conn_init();
+        
+        rst_buf = http_get(TEST_CONNECT_OK);
+        if(!rst_buf) {
+            printf("%s\n", rst_buf);
+            free(rst_buf);
+        }
 		break;
 
 	case EVENT_SOFTAPMODE_STACONNECTED:
@@ -480,6 +490,6 @@ user_init(void)
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
 	xTaskCreate(key_intr_task, "key_intr_task", 256, NULL, 1, &key_task_handle);    
-    xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
+    xTaskCreate(uart_task, (uint8 const *)"uTask", 4096, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 
