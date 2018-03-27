@@ -125,13 +125,10 @@ static int http_parse_result(HttpResponse *response)
         return -1;
     }
     ptmp += 4;
-    printf("http_parse_result(%d): %s\n", response->recv_len, response->recv_buf);
     response->recv_len -= (ptmp - lpbuf);
     if(response->recv_len > 0) {
         memmove(lpbuf, ptmp, response->recv_len);
-        printf("http_parse_result(%d): %s\n", response->recv_len, response->recv_buf);
     }
-    printf("http_parse_result ok!\n");
     return 0;
 }
 
