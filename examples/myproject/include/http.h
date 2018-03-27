@@ -7,8 +7,16 @@
 #define _MY_HTTP_H
 
 #define MY_HTTP_DEFAULT_PORT 80
+#define BUFFER_SIZE         1024
+#define HOST_SIZE           48
+#define FILE_SIZE           28
 
-char * http_get(const char *url);
-char * http_post(const char *url,const char * post_str);
+typedef struct {
+    int recv_len;
+    char recv_buf[BUFFER_SIZE];
+} HttpResponse;
+
+int http_get(const char *url, HttpResponse *response);
+int http_post(const char *url,const char * post_str, HttpResponse *response);
 
 #endif

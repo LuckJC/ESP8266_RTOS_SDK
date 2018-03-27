@@ -42,8 +42,6 @@
 #define DEVICE_TYPE 		"gh_9e2cff3dfa51" //wechat public number
 #define DEVICE_ID 			"122475" //model ID
 
-#define TEST_CONNECT_OK  "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%d:%d:%d:%d:%d:%d&time=%d"
-
 #define DEFAULT_LAN_PORT 	12476
 
 enum {
@@ -242,10 +240,6 @@ void scan_done(void *arg, STATUS status)
 
 void wifi_handle_event_cb(System_Event_t	*evt)
 {
-    char *rst_buf;
-    uint8 sta_mac[6];
-    u32 rtc_time;
-    char req_buf[48];
 	printf("event %x\n", evt->event_id);
 
 	switch (evt->event_id) {
@@ -273,19 +267,7 @@ void wifi_handle_event_cb(System_Event_t	*evt)
 			IP2STR(&evt->event_info.got_ip.mask),
 			IP2STR(&evt->event_info.got_ip.gw));
 		printf("\n");		
-        //user_conn_init();
-
-        wifi_get_macaddr(STATION_IF, sta_mac);
-        rtc_time = system_get_rtc_time();
-        sprintf(req_buf, TEST_CONNECT_OK, 
-            sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5], sta_mac[6],
-            rtc_time);
-        printf(req_buf);
-        rst_buf = http_get(req_buf);
-        if(!rst_buf) {
-            printf("%s\n", rst_buf);
-            free(rst_buf);
-        }
+        user_conn_init();
 		break;
 
 	case EVENT_SOFTAPMODE_STACONNECTED:
@@ -499,6 +481,6 @@ user_init(void)
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
 	xTaskCreate(key_intr_task, "key_intr_task", 256, NULL, 1, &key_task_handle);    
-    xTaskCreate(uart_task, (uint8 const *)"uTask", 4096, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
+    xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 

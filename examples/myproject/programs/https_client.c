@@ -5,6 +5,10 @@
 #include "freertos/task.h"
 #include "espressif/c_types.h"
 #include "lwip/sockets.h"
+#include "esp_common.h"
+#include "http.h"
+
+#define TEST_CONNECT_OK  "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%d:%d:%d:%d:%d:%d&time=%d"
 
 #define OPENSSL_DEMO_THREAD_NAME "ssl_demo"
 #define OPENSSL_DEMO_THREAD_STACK_WORDS 2048
@@ -28,6 +32,8 @@ LOCAL int send_bytes = sizeof(send_data);
 
 LOCAL char recv_buf[OPENSSL_DEMO_RECV_BUF_LEN];
 
+HttpResponse http_response;
+
 LOCAL void openssl_demo_thread(void *p)
 {
     int ret;
@@ -40,6 +46,25 @@ LOCAL void openssl_demo_thread(void *p)
     ip_addr_t target_ip;
 
     int recv_bytes = 0;
+#if 1
+    char rst_buf[256];
+    uint8 sta_mac[6];
+    u32 rtc_time;
+    char req_buf[48];
+    
+    wifi_get_macaddr(STATION_IF, sta_mac);
+    rtc_time = system_get_rtc_time();
+    sprintf(req_buf, TEST_CONNECT_OK, 
+        sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5], sta_mac[6],
+        rtc_time);
+    printf(req_buf);
+    printf("http_response.recv_len = %d\n", http_response.recv_len);
+    http_get(req_buf, &http_response);
+    printf("http_response.recv_len = %d\n", http_response.recv_len);
+    if(http_response.recv_len) {
+        printf("%s\n", http_response.recv_buf);
+    }
+#endif
 
     os_printf("OpenSSL demo thread start...\n");
 
