@@ -22,8 +22,7 @@ GEN_IMAGES= eagle.app.v6.out
 GEN_BINS= eagle.app.v6.bin
 SPECIAL_MKTARGETS=$(APP_MKTARGETS)
 SUBDIRS=    \
-	user    \
-	programs \
+	user \
 	driver
 
 endif # } PDIR
@@ -47,8 +46,7 @@ ifeq ($(FLAVOR),release)
 endif
 
 COMPONENTS_eagle.app.v6 = \
-	user/libuser.a  \
-	programs/openssl_demo.a \
+	user/libuser.a \
 	driver/libdriver.a
 
 LINKFLAGS_eagle.app.v6 = \
@@ -60,7 +58,6 @@ LINKFLAGS_eagle.app.v6 = \
     -u call_user_start	\
 	-Wl,-static						\
 	-Wl,--start-group					\
-	-lcirom \
 	-lminic \
 	-lgcc					\
 	-lhal					\
@@ -75,10 +72,6 @@ LINKFLAGS_eagle.app.v6 = \
 	-lespconn\
 	-lsmartconfig \
 	-lairkiss\
-	-lssc	\
-	-lspiffs    \
-	-lmbedtls               \
-	-lopenssl               \
 	$(DEP_LIBS_eagle.app.v6)					\
 	-Wl,--end-group
 
@@ -123,7 +116,7 @@ DDEFINES +=				\
 # Required for each makefile to inherit from the parent
 #
 
-INCLUDES := $(INCLUDES) -I $(PDIR)include -I $(SDK_PATH)/include/spiffs -I $(SDK_PATH)/include/openssl
+INCLUDES := $(INCLUDES) -I $(PDIR)include
 sinclude $(SDK_PATH)/Makefile
 
 .PHONY: FORCE

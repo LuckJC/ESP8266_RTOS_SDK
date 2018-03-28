@@ -1,26 +1,5 @@
-This is a simple project template.
+1¡¢compile options
 
-sample_lib is an example for multi-level folder Makefile, notice the folder structure and each Makefile, you can get the clue.
-
-
-HOWTO:
-1. Copy this folder to anywhere.
-Example:
-   Copy to ~/workspace/project_template
-   You can rename this folder as you like.
-
-2. Export SDK_PATH and BIN_PATH.
-Example:
-   Your SDK path is ~/esp_iot_rtos_sdk, and want generate bin at ~/esp8266_bin.
-   Do follow steps:
-     1>. export SDK_PATH=~/esp_iot_rtos_sdk
-     2>. export BIN_PATH=~/esp8266_bin
-   SDK and project are seperate, you can update SDK without change your project.
-
-3. Enter project_template folder, run ./gen_misc.sh, and follow the tips and steps.
-
-
-Compile Options:
 (1) COMPILE
     Possible value: xcc
     Default value:
@@ -54,3 +33,8 @@ Compile Options:
 
 For example:
     make COMPILE=gcc BOOT=new APP=1 SPI_SPEED=40 SPI_MODE=QIO SPI_SIZE_MAP=0
+
+2¡¢You can also use gen_misc to make and generate specific bin you needed.
+    Linux: ./gen_misc.sh
+    Windows: gen_misc.bat
+    Follow the tips and steps.

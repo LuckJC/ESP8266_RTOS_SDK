@@ -26,19 +26,16 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
 
 #include "lwip/sockets.h"
 #include "lwip/dns.h"
 #include "lwip/netdb.h"
 #include "espressif/espconn.h"
 #include "espressif/airkiss.h"
-#include "spiffs_test_params.h"
 #include "uart.h"
-#include "gpio.h"
-#include "lg_tty.h"
-#include "http.h"
-#include "apps/sntp_time.h"
+
+#define server_ip "192.168.101.142"
+#define server_port 9669
 
 
 #define DEVICE_TYPE 		"gh_9e2cff3dfa51" //wechat public number
@@ -46,32 +43,13 @@
 
 #define DEFAULT_LAN_PORT 	12476
 
-enum {
-    UART_EVENT_RX_CHAR,
-    UART_EVENT_MAX
-};
-
-typedef struct _os_event_ {
-    uint32 event;
-    uint8 buf[128];
-    uint32 len;
-} os_event_t;
-
-
 LOCAL esp_udp ssdp_udp;
 LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
-LOCAL os_timer_t keypress_timer;
-extern xTaskHandle xUartTaskHandle;
-extern xQueueHandle xQueueUart;
-
-
 
 uint8  lan_buf[200];
 uint16 lan_buf_len;
 uint8  udp_sent_cnt = 0;
-xTaskHandle key_task_handle;
-xTaskHandle ntp_task_handle;
 
 const airkiss_config_t akconf =
 {
@@ -213,217 +191,17 @@ smartconfig_done(sc_status status, void *pdata)
             	//SC_TYPE_AIRKISS - support airkiss v2.0
 				airkiss_start_discover();
 			}
-			smartconfig_stop();
+            smartconfig_stop();
             break;
     }
 	
 }
 
-void scan_done(void *arg, STATUS status)
-{
-	uint8 ssid[33];
-	char temp[128];
-	if	(status == OK)	{
-		struct bss_info *bss_link = (struct	bss_info *)arg;
-		while (bss_link != NULL) {
-			memset(ssid, 0, 33);
-			if (strlen(bss_link->ssid) <= 32)
-				memcpy(ssid, bss_link->ssid, strlen(bss_link->ssid));
-			else
-				memcpy(ssid, bss_link->ssid, 32);
-			printf("(%d,\"%s\",%d,\""MACSTR"\",%d)\r\n",
-				bss_link->authmode,	ssid, bss_link->rssi,
-			MAC2STR(bss_link->bssid), bss_link->channel);
-			bss_link = bss_link->next.stqe_next;
-		}
-	} else {
-		printf("scan fail !!!\r\n");
-	}
-}
-
-LOCAL void
-ntp_task(void *pvParameters)
-{
-    int ret;
-    int socket_fd;
-    uint32 cal, rtc_t;
-    unsigned long realtime;
-    struct sockaddr_in server_addr;
-    char *date;
-    struct timeval t;
-
-    configTime(8, 0, "cn.pool.ntp.org", "ntp1.aliyun.com", "ntp2.aliyun.com", 0);
-
-    if((socket_fd = socket(AF_INET,SOCK_DGRAM,0))==-1){
-        goto  NTP_FAIL1;
-    }
-
-    ret = create_ntp_server_addr("cn.pool.ntp.org", &server_addr);
-    if(ret < 0)
-        goto NTP_FAIL2;    
-
-    for (;;) {
-        //send_ntp_packet(socket_fd, &server_addr);
-        //realtime = recv_ntp_packet(socket_fd);
-        //printf("realtime = %d\n", realtime);
-        rtc_t = system_get_rtc_time();
-        cal = system_rtc_clock_cali_proc();
-        printf("rtc cal: %d.%d\n", (cal * 1000 >> 12) / 1000, (cal * 1000 >> 12) % 1000);
-        printf("rtc clock: %d\n", (rtc_t * cal >> 12) / 1000);
-        gettimeofday(&t, 8);
-        date = sntp_get_real_time(t.tv_sec);
-        printf("gettimeofday: %d\n", t.tv_sec);
-        printf("date: %s\n", date);
-        vTaskDelay(10 * 1000 / portTICK_RATE_MS);
-    }
-NTP_FAIL2:
-    close(socket_fd);
-NTP_FAIL1:
-    vTaskDelete(NULL);
-}
-
-void wifi_handle_event_cb(System_Event_t	*evt)
-{
-    struct timeval t;
-    int count = 3;
-
-	printf("event %x\n", evt->event_id);
-
-	switch (evt->event_id) {
-		case EVENT_STAMODE_CONNECTED:
-		printf("connect to ssid %s, channel %d\n",
-			evt->event_info.connected.ssid,
-			evt->event_info.connected.channel);
-		break;
-			
-	case EVENT_STAMODE_DISCONNECTED:
-		printf("disconnect from	ssid %s, reason %d\n",	
-			evt->event_info.disconnected.ssid,
-			evt->event_info.disconnected.reason);
-		break;
-		
-	case EVENT_STAMODE_AUTHMODE_CHANGE:
-		printf("mode: %d -> %d\n",
-			evt->event_info.auth_change.old_mode,
-			evt->event_info.auth_change.new_mode);
-		break;
-		
-	case EVENT_STAMODE_GOT_IP:
-		printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR,
-			IP2STR(&evt->event_info.got_ip.ip),
-			IP2STR(&evt->event_info.got_ip.mask),
-			IP2STR(&evt->event_info.got_ip.gw));
-		printf("\n");		
-        configTime(8, 0, "cn.pool.ntp.org", "ntp1.aliyun.com", "ntp2.aliyun.com", 0);
-        do {
-            gettimeofday(&t, NULL);
-            vTaskDelay(1000 / portTICK_RATE_MS);
-        }while(count--);
-        user_conn_init();
-        //xTaskCreate(ntp_task, "ntp_task", 256, NULL, 3, &ntp_task_handle);
-		break;
-
-	case EVENT_SOFTAPMODE_STACONNECTED:
-		printf("station: " MACSTR "join, AID = %d\n",	
-			MAC2STR(evt->event_info.sta_connected.mac),
-			evt->event_info.sta_connected.aid);
-		break;
-		
-	case EVENT_SOFTAPMODE_STADISCONNECTED:
-		printf("station: " MACSTR "leave, AID = %d\n",	
-			MAC2STR(evt->event_info.sta_disconnected.mac),
-			evt->event_info.sta_disconnected.aid);
-		break;
-		
-	default:
-		break;
-	}
-}
-
-void gpio_intr_handler(void *arg)
-{
-	uint32 gpio_status;
-	
-	gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
-	GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status);
-	
-	if((gpio_status & GPIO_Pin_0))
-		xTaskResumeFromISR(key_task_handle);
-}
-
-LOCAL void ICACHE_FLASH_ATTR
-key_long_press_time_callback(void)
-{
-	smartconfig_start(smartconfig_done);
-}
-
-
 void ICACHE_FLASH_ATTR
-key_intr_task(void *pvParameters)
+smartconfig_task(void *pvParameters)
 {
-	uint32 tick_count, tick_count_cur;
-	int key_state = 0;
-
-	os_timer_setfn(&keypress_timer, (os_timer_func_t *)key_long_press_time_callback, NULL);
-
-	while(1) {
-		vTaskSuspend(NULL);
-
-		_xt_isr_mask(1 << ETS_GPIO_INUM);
-		vTaskDelay(100 / portTICK_RATE_MS);
-		if(GPIO_INPUT_GET(GPIO_ID_PIN(0)) == 0) {
-			if(key_state == 0) {
-				key_state = 1;
-				printf("key down\n");
-				os_timer_disarm(&keypress_timer);				
-				os_timer_arm(&keypress_timer, 5000, 0);//1s
-			}
-		} else {
-			if(key_state == 1) {
-				key_state = 0;
-				printf("key up\n");
-				os_timer_disarm(&keypress_timer);
-			}
-		}
-		_xt_isr_unmask(1 << ETS_GPIO_INUM);
-	}
-
-
-    vTaskDelete(NULL);
-}
-
-LOCAL void
-uart_task(void *pvParameters)
-{
-    int seq = 0;
-    os_event_t e;
-    portTickType delay = portMAX_DELAY;
-    LGTTY_RECVS rcvs;
-    char *ptr = rcvs.recv_buf;
-
-    rcvs.recv_len = 0;
-
-    for (;;) {
-        if (xQueueReceive(xQueueUart, (void *)&e, delay)) {
-            switch (e.event) {
-                case UART_EVENT_RX_CHAR:
-                    ptr = rcvs.recv_buf + rcvs.recv_len;
-                    memcpy(ptr, e.buf, e.len);
-                    rcvs.recv_len += e.len;
-                    delay = 40/portTICK_RATE_MS;
-                    break;
-
-                default:
-                    break;
-            }
-        } else {
-            seq++;
-            printf("seq: %d\n", seq);
-            delay = portMAX_DELAY;
-			lgtty_read(0, &rcvs);
-        }
-    }
-
+    smartconfig_start(smartconfig_done);
+    
     vTaskDelete(NULL);
 }
 
@@ -476,39 +254,6 @@ uint32 user_rf_cal_sector_set(void)
     return rf_cal_sec;
 }
 
-void ICACHE_FLASH_ATTR
-key_init()
-{
-	GPIO_ConfigTypeDef pin_config;
-	pin_config.GPIO_Pin = GPIO_Pin_0;
-	pin_config.GPIO_Mode = GPIO_Mode_Input;
-	pin_config.GPIO_Pullup = GPIO_PullUp_DIS;
-	pin_config.GPIO_IntrType = GPIO_PIN_INTR_ANYEDGE;
-	gpio_config(&pin_config);
-
-	_xt_isr_unmask(1 << ETS_GPIO_INUM);
-
-	//gpio_pin_wakeup_enable(GPIO_Pin_0, GPIO_PIN_INTR_ANYEDGE);
-	gpio_intr_handler_register(gpio_intr_handler, NULL);
-}
-
-void ICACHE_FLASH_ATTR
-spiffs_fs1_init(void)
-{
-    struct esp_spiffs_config config;
-
-    config.phys_size = FS1_FLASH_SIZE;
-    config.phys_addr = FS1_FLASH_ADDR;
-    config.phys_erase_block = SECTOR_SIZE;
-    config.log_block_size = LOG_BLOCK;
-    config.log_page_size = LOG_PAGE;
-    config.fd_buf_size = FD_BUF_SIZE * 2;
-    config.cache_buf_size = CACHE_BUF_SIZE;
-
-    esp_spiffs_init(&config);
-}
-
-
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry of user application, init user function here
@@ -518,22 +263,12 @@ spiffs_fs1_init(void)
 void ICACHE_FLASH_ATTR
 user_init(void)
 {
-	//UART_SetBaudrate(0, BIT_RATE_921600);
-	uart_init_new();
-
+	UART_SetBaudrate(0, BIT_RATE_921600);
     printf("SDK version:%s\n", system_get_sdk_version());
 
-	lgtty_write(0, "Hello World!\n", 13);
+    /* need to set opmode before you set config */
+    wifi_set_opmode(STATION_MODE);
 
-	key_init();
-
-	spiffs_fs1_init();
-
-	wifi_set_opmode(STATION_MODE);
-	
-	wifi_set_event_handler_cb(wifi_handle_event_cb);
-
-	xTaskCreate(key_intr_task, "key_intr_task", 512, NULL, 1, &key_task_handle);
-    xTaskCreate(uart_task, (uint8 const *)"uTask", 1024, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
+    xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
 }
 
