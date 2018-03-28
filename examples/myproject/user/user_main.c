@@ -38,6 +38,8 @@
 #include "gpio.h"
 #include "lg_tty.h"
 #include "http.h"
+#include "apps/sntp_time.h"
+
 
 #define DEVICE_TYPE 		"gh_9e2cff3dfa51" //wechat public number
 #define DEVICE_ID 			"122475" //model ID
@@ -69,6 +71,7 @@ uint8  lan_buf[200];
 uint16 lan_buf_len;
 uint8  udp_sent_cnt = 0;
 xTaskHandle key_task_handle;
+xTaskHandle ntp_task_handle;
 
 const airkiss_config_t akconf =
 {
@@ -238,8 +241,52 @@ void scan_done(void *arg, STATUS status)
 	}
 }
 
+LOCAL void
+ntp_task(void *pvParameters)
+{
+    int ret;
+    int socket_fd;
+    uint32 cal, rtc_t;
+    unsigned long realtime;
+    struct sockaddr_in server_addr;
+    char *date;
+    struct timeval t;
+
+    configTime(8, 0, "cn.pool.ntp.org", "ntp1.aliyun.com", "ntp2.aliyun.com", 0);
+
+    if((socket_fd = socket(AF_INET,SOCK_DGRAM,0))==-1){
+        goto  NTP_FAIL1;
+    }
+
+    ret = create_ntp_server_addr("cn.pool.ntp.org", &server_addr);
+    if(ret < 0)
+        goto NTP_FAIL2;    
+
+    for (;;) {
+        //send_ntp_packet(socket_fd, &server_addr);
+        //realtime = recv_ntp_packet(socket_fd);
+        //printf("realtime = %d\n", realtime);
+        rtc_t = system_get_rtc_time();
+        cal = system_rtc_clock_cali_proc();
+        printf("rtc cal: %d.%d\n", (cal * 1000 >> 12) / 1000, (cal * 1000 >> 12) % 1000);
+        printf("rtc clock: %d\n", (rtc_t * cal >> 12) / 1000);
+        gettimeofday(&t, 8);
+        date = sntp_get_real_time(t.tv_sec);
+        printf("gettimeofday: %d\n", t.tv_sec);
+        printf("date: %s\n", date);
+        vTaskDelay(10 * 1000 / portTICK_RATE_MS);
+    }
+NTP_FAIL2:
+    close(socket_fd);
+NTP_FAIL1:
+    vTaskDelete(NULL);
+}
+
 void wifi_handle_event_cb(System_Event_t	*evt)
 {
+    struct timeval t;
+    int count = 3;
+
 	printf("event %x\n", evt->event_id);
 
 	switch (evt->event_id) {
@@ -267,7 +314,13 @@ void wifi_handle_event_cb(System_Event_t	*evt)
 			IP2STR(&evt->event_info.got_ip.mask),
 			IP2STR(&evt->event_info.got_ip.gw));
 		printf("\n");		
+        configTime(8, 0, "cn.pool.ntp.org", "ntp1.aliyun.com", "ntp2.aliyun.com", 0);
+        do {
+            gettimeofday(&t, NULL);
+            vTaskDelay(1000 / portTICK_RATE_MS);
+        }while(count--);
         user_conn_init();
+        //xTaskCreate(ntp_task, "ntp_task", 256, NULL, 3, &ntp_task_handle);
 		break;
 
 	case EVENT_SOFTAPMODE_STACONNECTED:
@@ -480,7 +533,7 @@ user_init(void)
 	
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
-	xTaskCreate(key_intr_task, "key_intr_task", 256, NULL, 1, &key_task_handle);    
-    xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
+	xTaskCreate(key_intr_task, "key_intr_task", 512, NULL, 1, &key_task_handle);
+    xTaskCreate(uart_task, (uint8 const *)"uTask", 1024, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 

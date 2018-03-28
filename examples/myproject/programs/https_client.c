@@ -7,8 +7,9 @@
 #include "lwip/sockets.h"
 #include "esp_common.h"
 #include "http.h"
+#include "apps/sntp_time.h"
 
-#define TEST_CONNECT_OK  "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%d:%d:%d:%d:%d:%d&time=%d"
+#define TEST_CONNECT_OK  "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%02X%02X%02X%02X%02X%02X&time=%d"
 
 #define OPENSSL_DEMO_THREAD_NAME "ssl_demo"
 #define OPENSSL_DEMO_THREAD_STACK_WORDS 2048
@@ -49,18 +50,21 @@ LOCAL void openssl_demo_thread(void *p)
 #if 1
     char rst_buf[256];
     uint8 sta_mac[6];
-    u32 rtc_time;
     char req_buf[48];
+    char *date;
+    struct timeval t;
     
     wifi_get_macaddr(STATION_IF, sta_mac);
-    rtc_time = system_get_rtc_time();
+    do {
+        ret = gettimeofday(&t, NULL);
+        date = sntp_get_real_time(t.tv_sec);
+    }while(ret);
+    printf("Date: %s\n", date);
     sprintf(req_buf, TEST_CONNECT_OK, 
-        sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5], sta_mac[6],
-        rtc_time);
+        sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5],
+        t.tv_sec);
     printf(req_buf);
-    printf("http_response.recv_len = %d\n", http_response.recv_len);
     http_get(req_buf, &http_response);
-    printf("http_response.recv_len = %d\n", http_response.recv_len);
     if(http_response.recv_len) {
         printf("%s\n", http_response.recv_buf);
     }
