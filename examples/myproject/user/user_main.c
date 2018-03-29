@@ -198,6 +198,59 @@ smartconfig_done(sc_status status, void *pdata)
 }
 
 void ICACHE_FLASH_ATTR
+wifi_handle_event_cb(System_Event_t	*evt)
+{
+    struct timeval t;
+    int count = 3;
+
+	printf("event %x\n", evt->event_id);
+
+	switch (evt->event_id) {
+		case EVENT_STAMODE_CONNECTED:
+		printf("connect to ssid %s, channel %d\n",
+			evt->event_info.connected.ssid,
+			evt->event_info.connected.channel);
+		break;
+			
+	case EVENT_STAMODE_DISCONNECTED:
+		printf("disconnect from	ssid %s, reason %d\n",	
+			evt->event_info.disconnected.ssid,
+			evt->event_info.disconnected.reason);
+		break;
+		
+	case EVENT_STAMODE_AUTHMODE_CHANGE:
+		printf("mode: %d -> %d\n",
+			evt->event_info.auth_change.old_mode,
+			evt->event_info.auth_change.new_mode);
+		break;
+		
+	case EVENT_STAMODE_GOT_IP:
+		printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR,
+			IP2STR(&evt->event_info.got_ip.ip),
+			IP2STR(&evt->event_info.got_ip.mask),
+			IP2STR(&evt->event_info.got_ip.gw));
+		printf("\n");		
+
+		break;
+
+	case EVENT_SOFTAPMODE_STACONNECTED:
+		printf("station: " MACSTR "join, AID = %d\n",	
+			MAC2STR(evt->event_info.sta_connected.mac),
+			evt->event_info.sta_connected.aid);
+		break;
+		
+	case EVENT_SOFTAPMODE_STADISCONNECTED:
+		printf("station: " MACSTR "leave, AID = %d\n",	
+			MAC2STR(evt->event_info.sta_disconnected.mac),
+			evt->event_info.sta_disconnected.aid);
+		break;
+		
+	default:
+		break;
+	}
+}
+
+void ICACHE_FLASH_ATTR
 smartconfig_task(void *pvParameters)
 {
     smartconfig_start(smartconfig_done);
@@ -268,7 +321,8 @@ user_init(void)
 
     /* need to set opmode before you set config */
     wifi_set_opmode(STATION_MODE);
+	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
-    xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
+    //xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
 }
 
