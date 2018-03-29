@@ -33,6 +33,7 @@
 #include "espressif/espconn.h"
 #include "espressif/airkiss.h"
 #include "uart.h"
+#include "gpio.h"
 
 #define server_ip "192.168.101.142"
 #define server_port 9669
@@ -46,6 +47,8 @@
 LOCAL esp_udp ssdp_udp;
 LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
+LOCAL os_timer_t keypress_timer;
+xTaskHandle key_task_handle;
 
 uint8  lan_buf[200];
 uint16 lan_buf_len;
@@ -250,6 +253,60 @@ wifi_handle_event_cb(System_Event_t	*evt)
 	}
 }
 
+LOCAL void gpio_intr_handler(void *arg)
+{
+	uint32 gpio_status;
+	
+	gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
+	GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status);
+	
+	if((gpio_status & GPIO_Pin_0))
+		xTaskResumeFromISR(key_task_handle);
+}
+
+LOCAL void ICACHE_FLASH_ATTR
+key_long_press_time_callback(void)
+{
+    smartconfig_stop();
+    os_timer_disarm(&ssdp_time_serv);
+	smartconfig_start(smartconfig_done);
+}
+
+
+void ICACHE_FLASH_ATTR
+key_intr_task(void *pvParameters)
+{
+	uint32 tick_count, tick_count_cur;
+	int key_state = 0;
+
+	os_timer_setfn(&keypress_timer, (os_timer_func_t *)key_long_press_time_callback, NULL);
+
+	while(1) {
+		vTaskSuspend(NULL);
+
+		_xt_isr_mask(1 << ETS_GPIO_INUM);
+		vTaskDelay(100 / portTICK_RATE_MS);
+		if(GPIO_INPUT_GET(GPIO_ID_PIN(0)) == 0) {
+			if(key_state == 0) {
+				key_state = 1;
+				printf("key down\n");
+				os_timer_disarm(&keypress_timer);				
+				os_timer_arm(&keypress_timer, 3000, 0);//3s
+			}
+		} else {
+			if(key_state == 1) {
+				key_state = 0;
+				printf("key up\n");
+				os_timer_disarm(&keypress_timer);
+			}
+		}
+		_xt_isr_unmask(1 << ETS_GPIO_INUM);
+	}
+
+    vTaskDelete(NULL);
+}
+
+
 void ICACHE_FLASH_ATTR
 smartconfig_task(void *pvParameters)
 {
@@ -307,6 +364,22 @@ uint32 user_rf_cal_sector_set(void)
     return rf_cal_sec;
 }
 
+void ICACHE_FLASH_ATTR
+key_init()
+{
+	GPIO_ConfigTypeDef pin_config;
+	pin_config.GPIO_Pin = GPIO_Pin_0;
+	pin_config.GPIO_Mode = GPIO_Mode_Input;
+	pin_config.GPIO_Pullup = GPIO_PullUp_DIS;
+	pin_config.GPIO_IntrType = GPIO_PIN_INTR_ANYEDGE;
+	gpio_config(&pin_config);
+
+	_xt_isr_unmask(1 << ETS_GPIO_INUM);
+
+	//gpio_pin_wakeup_enable(GPIO_Pin_0, GPIO_PIN_INTR_ANYEDGE);
+	gpio_intr_handler_register(gpio_intr_handler, NULL);
+}
+
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry of user application, init user function here
@@ -319,10 +392,12 @@ user_init(void)
 	UART_SetBaudrate(0, BIT_RATE_921600);
     printf("SDK version:%s\n", system_get_sdk_version());
 
+	key_init();
     /* need to set opmode before you set config */
     wifi_set_opmode(STATION_MODE);
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
     //xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
+	xTaskCreate(key_intr_task, "key_intr_task", 512, NULL, 1, &key_task_handle);
 }
 
