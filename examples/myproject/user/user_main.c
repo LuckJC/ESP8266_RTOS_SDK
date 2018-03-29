@@ -32,6 +32,9 @@
 #include "lwip/netdb.h"
 #include "espressif/espconn.h"
 #include "espressif/airkiss.h"
+#include "lwip/apps/sntp.h"
+#include "lwip/apps/time.h"
+#include "lwip/apps/sntp_time.h"
 #include "uart.h"
 #include "gpio.h"
 
@@ -204,7 +207,9 @@ void ICACHE_FLASH_ATTR
 wifi_handle_event_cb(System_Event_t	*evt)
 {
     struct timeval t;
+    time_t t2;
     int count = 3;
+	char *date;
 
 	printf("event %x\n", evt->event_id);
 
@@ -232,8 +237,19 @@ wifi_handle_event_cb(System_Event_t	*evt)
 			IP2STR(&evt->event_info.got_ip.ip),
 			IP2STR(&evt->event_info.got_ip.mask),
 			IP2STR(&evt->event_info.got_ip.gw));
-		printf("\n");		
-
+		printf("\n");
+        #if 0
+        configTime(8, 0, "cn.pool.ntp.org", "ntp1.aliyun.com", "ntp2.aliyun.com", 0);
+        do {
+            gettimeofday(&t, NULL);
+            //time(&t2);
+			date = sntp_get_real_time(t.tv_sec);//sntp_get_real_time(t2);
+			printf("Date: %s\n", date);
+            vTaskDelay(1000 / portTICK_RATE_MS);
+        }while(count--);
+        //user_conn_init();
+        #endif
+        user_conn_init();
 		break;
 
 	case EVENT_SOFTAPMODE_STACONNECTED:
