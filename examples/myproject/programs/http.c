@@ -19,9 +19,9 @@
 #define OPENSSL_FRAGMENT_SIZE   8192
 #define OPENSSL_LOCAL_TCP_PORT  1000
 
-#define HTTP_POST "POST /%s HTTP/1.1\r\nHOST: %s:%d\r\nAccept: */*\r\n"\
+#define HTTP_POST "POST /%s HTTP/1.1\r\nHOST: %s:%d\r\nAccept: */*\r\nConnection: Close\r\n"\
     "Content-Type:application/x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s"
-#define HTTP_GET "GET /%s HTTP/1.1\r\nHOST: %s:%d\r\nAccept: */*\r\n\r\n"
+#define HTTP_GET "GET /%s HTTP/1.1\r\nHOST: %s:%d\r\nAccept: */*\r\nConnection: Close\r\n\r\n"
 
 static int http_tcpclient_create(const char *host, int port){
     int ret;
@@ -120,9 +120,18 @@ static int http_parse_url(const char *url,char *host,char *file,int *port)
 }
 
 static int http_tcpclient_recv(int socket, HttpResponse *response) {
-    memset(response->recv_buf, 0, BUFFER_SIZE);
-    response->recv_len= recv(socket, response->recv_buf, BUFFER_SIZE,0);
-    return response->recv_len;
+    int ret;   
+    
+    ret = recv(socket, response->recv_buf, BUFFER_SIZE-1,0);
+    if(ret <= 0) {
+        response->recv_len = 0;
+        return ret;
+    }
+
+    response->recv_buf[ret] = '\0';
+    response->recv_len = ret;
+    
+    return ret;
 }
 
 static int http_tcpclient_send(int socket,char *buff,int size){
@@ -175,7 +184,6 @@ static int https_transmit(int socket_fd, const char *requst, int len, HttpRespon
         ret = -3;
         goto failed3;
     }
-    printf("OK\n");
 
     ret = SSL_write(ssl, requst, len);
     if (ret <= 0) {
@@ -183,15 +191,16 @@ static int https_transmit(int socket_fd, const char *requst, int len, HttpRespon
         ret = -5;
         goto failed4;
     }
-    printf("OK\n\n");
     
-    memset(response->recv_buf, 0, BUFFER_SIZE);
-    recv_bytes = SSL_read(ssl, response->recv_buf, BUFFER_SIZE);
-    if (recv_bytes <= 0) {
+    ret = SSL_read(ssl, response->recv_buf, BUFFER_SIZE - 1);
+    if (ret <= 0) {
         ret = -6;
+        response->recv_len = 0;
         goto failed5;
-    }    
-    ret = recv_bytes;
+    }
+    
+    response->recv_buf[ret] = '\0';
+    response->recv_len = ret;
 failed5:
 failed4:
     SSL_shutdown(ssl);
@@ -228,6 +237,7 @@ static int http_parse_result(HttpResponse *response)
     response->recv_len -= (ptmp - lpbuf);
     if(response->recv_len > 0) {
         memmove(lpbuf, ptmp, response->recv_len);
+        lpbuf[response->recv_len] = '\0';
     }
     return 0;
 }
