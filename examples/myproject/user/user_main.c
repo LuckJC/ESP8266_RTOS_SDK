@@ -26,6 +26,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 
 #include "lwip/sockets.h"
 #include "lwip/dns.h"
@@ -37,6 +38,7 @@
 #include "lwip/apps/sntp_time.h"
 #include "uart.h"
 #include "gpio.h"
+#include "lg_tty.h"
 
 #define server_ip "192.168.101.142"
 #define server_port 9669
@@ -47,6 +49,17 @@
 
 #define DEFAULT_LAN_PORT 	12476
 
+enum {
+    UART_EVENT_RX_CHAR,
+    UART_EVENT_MAX
+};
+
+typedef struct _os_event_ {
+    uint32 event;
+    uint8 buf[128];
+    uint32 len;
+} os_event_t;
+
 LOCAL esp_udp ssdp_udp;
 LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
@@ -56,6 +69,9 @@ xTaskHandle key_task_handle;
 uint8  lan_buf[200];
 uint16 lan_buf_len;
 uint8  udp_sent_cnt = 0;
+
+extern xTaskHandle xUartTaskHandle;
+extern xQueueHandle xQueueUart;
 
 const airkiss_config_t akconf =
 {
@@ -324,6 +340,40 @@ key_intr_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+LOCAL void ICACHE_FLASH_ATTR
+uart_task(void *pvParameters)
+{
+    int seq = 0;
+    os_event_t e;
+    portTickType delay = portMAX_DELAY;
+    LGTTY_RECVS rcvs;
+    char *ptr = rcvs.recv_buf;
+
+    rcvs.recv_len = 0;
+
+    for (;;) {
+        if (xQueueReceive(xQueueUart, (void *)&e, delay)) {
+            switch (e.event) {
+                case UART_EVENT_RX_CHAR:
+                    ptr = rcvs.recv_buf + rcvs.recv_len;
+                    memcpy(ptr, e.buf, e.len);
+                    rcvs.recv_len += e.len;
+                    delay = 40/portTICK_RATE_MS;
+                    break;
+
+                default:
+                    break;
+            }
+        } else {
+            seq++;
+            printf("seq: %d\n", seq);
+            delay = portMAX_DELAY;
+			lgtty_read(0, &rcvs);
+        }
+    }
+
+    vTaskDelete(NULL);
+}
 
 void ICACHE_FLASH_ATTR
 smartconfig_task(void *pvParameters)
@@ -407,8 +457,11 @@ key_init()
 void ICACHE_FLASH_ATTR
 user_init(void)
 {
-	UART_SetBaudrate(0, BIT_RATE_921600);
+	//UART_SetBaudrate(0, BIT_RATE_921600);
+	uart_init_new();
     printf("SDK version:%s\n", system_get_sdk_version());
+
+    lgtty_work_mode(UART0);
 
 	key_init();
     /* need to set opmode before you set config */
@@ -417,5 +470,6 @@ user_init(void)
 
     //xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
 	xTaskCreate(key_intr_task, "key_intr_task", 512, NULL, 1, &key_task_handle);
+	xTaskCreate(uart_task, (uint8 const *)"uTask", 1024, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 

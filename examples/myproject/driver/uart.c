@@ -420,7 +420,7 @@ uart_init_new(void)
     UART_WaitTxFifoEmpty(UART1);
 
     UART_ConfigTypeDef uart_config;
-    uart_config.baud_rate    = BIT_RATE_921600;
+    uart_config.baud_rate    = BIT_RATE_9600;
     uart_config.data_bits     = UART_WordLength_8b;
     uart_config.parity          = USART_Parity_None;
     uart_config.stop_bits     = USART_StopBits_1;
@@ -428,6 +428,7 @@ uart_init_new(void)
     uart_config.UART_RxFlowThresh = 120;
     uart_config.UART_InverseMask = UART_None_Inverse;
     UART_ParamConfig(UART0, &uart_config);
+    uart_config.baud_rate    = BIT_RATE_921600;
     UART_ParamConfig(UART1, &uart_config);
 
     UART_IntrConfTypeDef uart_intr;
