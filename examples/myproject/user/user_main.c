@@ -224,6 +224,7 @@ wifi_handle_event_cb(System_Event_t	*evt)
 		printf("disconnect from	ssid %s, reason %d\n",	
 			evt->event_info.disconnected.ssid,
 			evt->event_info.disconnected.reason);
+        user_conn_destroy();
 		break;
 		
 	case EVENT_STAMODE_AUTHMODE_CHANGE:
@@ -283,6 +284,7 @@ LOCAL void gpio_intr_handler(void *arg)
 LOCAL void ICACHE_FLASH_ATTR
 key_long_press_time_callback(void)
 {
+    user_conn_destroy();
     smartconfig_stop();
     os_timer_disarm(&ssdp_time_serv);
 	smartconfig_start(smartconfig_done);

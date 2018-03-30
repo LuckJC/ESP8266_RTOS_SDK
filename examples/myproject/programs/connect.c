@@ -11,9 +11,11 @@
 #include "http.h"
 
 #define TEST_CONNECT_OK  "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%02X%02X%02X%02X%02X%02X"
-#define TEST_BAIDU          "https://www.baidu.com"
+#define TEST_BAIDU       "https://www.baidu.com"
+#define TEST_WEIXIN      "https://api.weixin.qq.com"
 
 LOCAL xTaskHandle connect_handle;
+LOCAL int do_exit;
 
 HttpResponse http_response;
 
@@ -43,7 +45,7 @@ LOCAL void connect_thread(void *p)
             continue;
         }
         vTaskDelay(2000 / portTICK_RATE_MS);
-        ret = http_get(TEST_BAIDU, &http_response);
+        ret = http_get(TEST_WEIXIN, &http_response);
         if (ret < 0) {
             //goto CONNECT_FAIL1;
             printf("......https test failed(%d)\n", ret);
@@ -54,10 +56,10 @@ LOCAL void connect_thread(void *p)
         }
         printf("......https test ok\n");
         vTaskDelay(2000 / portTICK_RATE_MS);
-    } while(1);
+    } while(!do_exit);
 
 CONNECT_FAIL1:
-    os_printf("task exit\n");
+    printf("task exit\n");
     vTaskDelete(NULL);
 
     return ;
@@ -67,6 +69,8 @@ void user_conn_init(void)
 {
     int ret;
 
+    do_exit = 0;
+
     ret = xTaskCreate(connect_thread,
                       "connect",
                       2048,
@@ -74,8 +78,14 @@ void user_conn_init(void)
                       6,
                       &connect_handle);
     if (ret != pdPASS)  {
-        os_printf("create thread connect failed\n");
+        printf("create thread connect failed\n");
         return ;
     }
 }
+
+void user_conn_destroy(void)
+{
+    do_exit = 1;  
+}
+
 
