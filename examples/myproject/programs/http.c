@@ -180,14 +180,14 @@ static int https_transmit(int socket_fd, const char *requst, int len, HttpRespon
 
     ret = SSL_connect(ssl);
     if (!ret) {
-        printf("failed, return [-0x%x]\n", -ret);
+        printf("SSL_connect failed, return [-0x%x]\n", -ret);
         ret = -3;
         goto failed3;
     }
 
     ret = SSL_write(ssl, requst, len);
     if (ret <= 0) {
-        printf("failed, return [-0x%x]\n", -ret);
+        printf("SSL_write failed, return [-0x%x]\n", -ret);
         ret = -5;
         goto failed4;
     }
