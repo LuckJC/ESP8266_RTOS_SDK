@@ -10,8 +10,8 @@
 #define HTTPS_DEFAULT_PORT  443
 
 #define BUFFER_SIZE         1024
-#define HOST_SIZE           48
-#define FILE_SIZE           28
+#define HOST_SIZE           128
+#define FILE_SIZE           128
 
 typedef struct {
     int recv_len;

@@ -1,6 +1,7 @@
 #ifndef LG_TTY_H
 #define LG_TTY_H
 #include <time.h>
+#include "freertos/queue.h"
 
 int lgtty_open(char *portname);
 int lgtty_close(int fd);
@@ -12,6 +13,18 @@ typedef struct {
 	int recv_len;
 	char recv_buf[MAX_RECV_BUFF_LEN];
 }  LGTTY_RECVS;
+
+enum {
+	LORA_EVENT_CMD_FRAME,
+    LORA_EVENT_DATA_FRAME,
+    LORA_EVENT_MAX
+};
+
+typedef struct {
+    uint8 event;
+    uint8 buf[5];
+    uint32 len;
+} lora_event_t;
 
 #define  TTY_COMM_LEN  7
 #define  TTY_ID_LEN  3
@@ -50,7 +63,7 @@ extern STATE_PROC state_proc_s[ESTAT_OVER+1];
 #define ULOG(fmt, a...)  printf(fmt, ##a) 
 #define DATA_DUMP(prompt, data, len)	__data_dump(prompt, data, len)
 
-int lgtty_read(int fd, LGTTY_RECVS *rcvs);
+int lgtty_read(int fd, LGTTY_RECVS *rcvs, xQueueHandle queue);
 void lgtty_timeout_callback(int fd, LGTTY_RECVS *rcvs);
 
 extern int do_exit;

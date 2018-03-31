@@ -9,31 +9,68 @@
 #include "lwip/apps/sntp_time.h"
 #include "esp_common.h"
 #include "http.h"
+#include "lg_tty.h"
 
-#define TEST_CONNECT_OK  "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%02X%02X%02X%02X%02X%02X"
+
 #define TEST_BAIDU       "https://www.baidu.com"
 #define TEST_WEIXIN      "https://api.weixin.qq.com"
 
-LOCAL xTaskHandle connect_handle;
-LOCAL int do_exit;
 
+#define TEST_REPORT_CONNECT_OK          "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%02X%02X%02X%02X%02X%02X"
+#define TEST_GET_USER_INFO              "http://ui.iot.skadiseye.wang/chip/api/test/gwdatas"
+#define TEST_GET_AUTHTOKEN              "http://ui.iot.skadiseye.wang/aY7iBsxI2aOOk3BI"
+
+//#define PUSH_WEIXIN_MSG                 "https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=%s"
+//#define WEIXIN_POST_BODY                "{\"data\":{\"device\":{\"color\":\"#173177\",\"value\":\"°²·ÀÉè±¸\"},\"first\":{\"color\":\"#173177\",\"value\":\" ±¨¾¯\"},\"remark\":{\"color\":\"#140101\",\"value\":\"Ö÷»ú [Èý¶°211] µÄ°²·ÀÌ½²âÆ÷ ±¨¾¯\"},\"time\":{\"color\":\"#173177\",\"value\":\"2017-12-30 13:24:13\"}},\"template_id\":\"VQMra5Ii9eno5MueQg8557IPoySa4ZbzxN-E3pH5a8I\",\"topcolor\":\"#173177\",\"touser\":\"oBFWE1RXdmhkQ047x1Ct8JxTKtT0\",\"url\":\"\"}"
+
+
+LOCAL xTaskHandle connect_handle;
+LOCAL int do_con_exit;
 HttpResponse http_response;
+char AUTHTOKEN[512];
+
+extern xQueueHandle xQueueFrame;
 
 LOCAL void connect_thread(void *p)
 {
     int ret;
     char rst_buf[256];
     uint8 sta_mac[6];
-    char req_buf[48];
-    //char *date;
-    //struct timeval t;
+    char req_buf[128];
+	lora_event_t e;
+	
+	wifi_get_macaddr(STATION_IF, sta_mac);
+    sprintf(req_buf, TEST_REPORT_CONNECT_OK, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
+    do {
+        ret = http_get(req_buf, &http_response);
+    } while(!ret && !do_con_exit);
+	
+	http_get(TEST_GET_AUTHTOKEN, &http_response);
+	if(http_response.recv_len) {
+        memcpy(AUTHTOKEN, http_response.recv_buf, http_response.recv_len);
+        AUTHTOKEN[http_response.recv_len] = '\0';
+        printf("%s\n", AUTHTOKEN);
+    }
+
+    for (;;) {
+        if (xQueueReceive(xQueueFrame, (void *)&e, portMAX_DELAY)) {
+            switch (e.event) {
+                case LORA_EVENT_DATA_FRAME:
+                    //dev_frame_process(e.buf, e.len);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
 
     do {
         wifi_get_macaddr(STATION_IF, sta_mac);
         //ret = gettimeofday(&t, NULL);
         //date = sntp_get_real_time(t.tv_sec);
         //printf("Date: %s\n", date);
-        sprintf(req_buf, TEST_CONNECT_OK, 
+        sprintf(req_buf, TEST_REPORT_CONNECT_OK, 
             sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
         printf(req_buf);
         printf("\n");
@@ -56,7 +93,7 @@ LOCAL void connect_thread(void *p)
         }
         printf("......https test ok\n");
         vTaskDelay(2000 / portTICK_RATE_MS);
-    } while(!do_exit);
+    } while(!do_con_exit);
 
 CONNECT_FAIL1:
     printf("task exit\n");
@@ -69,11 +106,11 @@ void user_conn_init(void)
 {
     int ret;
 
-    do_exit = 0;
+    do_con_exit = 0;
 
     ret = xTaskCreate(connect_thread,
                       "connect",
-                      2048,
+                      3072,
                       NULL,
                       6,
                       &connect_handle);
@@ -85,7 +122,7 @@ void user_conn_init(void)
 
 void user_conn_destroy(void)
 {
-    do_exit = 1;  
+    do_con_exit = 1;  
 }
 
 

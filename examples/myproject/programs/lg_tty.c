@@ -293,25 +293,19 @@ static const char *devtype_info[2][16] = {
 	}
 };
 
+#if 0
 static int dev_frame_process(const char *buffer, int msglen)
 {
-	unsigned char D = buffer[3];
-	//unsigned char E = buffer[4];
-
-	unsigned char D7 = (D>>7)&0x01;
-	ULOG("D7: %s\n", D7_info[D7]);
-
-	unsigned char D6 = (D>>6)&0x01;
-	ULOG("D6: %s\n", D6_info[D6]);
-
-	unsigned char D5 = (D>>5)&0x01;
-	unsigned char D1D4 = (D>>1)&0x0f;
-	ULOG("device code: %s\n", devtype_info[D5][D1D4]);
-
-	//unsigned char D0 = D&0x01;
+    lora_event_t e;
+    
+	memcpy(e.buf, buffer, msglen);
+    e.len = msglen;
+    e.event = LORA_EVENT_DATA_FRAME;
+	xQueueSend(xQueueFrame, (void *)&e, 0);
 	
 	return 0;
 }
+#endif
 
 #define ID_LEN  3
 #define DEV_FRAME_LEN  7
@@ -319,13 +313,14 @@ static int dev_frame_process(const char *buffer, int msglen)
 // equal the minimum cmd frame length
 #define MIN_FRAME_LEN  (ID_LEN+3)
 
-int lgtty_read(int fd, LGTTY_RECVS *rcvs)
+int lgtty_read(int fd, LGTTY_RECVS *rcvs, xQueueHandle queue)
 {
 	char *ptr = rcvs->recv_buf + rcvs->recv_len;
 	int read_len = 0;
 	char *buffer = NULL;
 	int msglen = 0;
 	int rfs_ret = 0;
+    lora_event_t e;
 
 	buffer = rcvs->recv_buf;
 	ULOG("read from server totallen=%d, this readlen=%d\n", rcvs->recv_len, read_len);
@@ -428,8 +423,13 @@ int lgtty_read(int fd, LGTTY_RECVS *rcvs)
 				goto _CONT_NEXT;
 			}
 
-			error_check(0);
-			rfs_ret = dev_frame_process(buffer, msglen);
+			error_check(0);    
+        	memcpy(e.buf, buffer, msglen);
+            e.len = msglen;
+            e.event = LORA_EVENT_DATA_FRAME;
+        	xQueueSend(queue, (void *)&e, 0);
+
+			//rfs_ret = dev_frame_process(buffer, msglen);
 		}
 
 	_CONT_NEXT:

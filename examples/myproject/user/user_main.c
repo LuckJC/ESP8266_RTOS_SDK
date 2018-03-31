@@ -65,6 +65,7 @@ LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
 LOCAL os_timer_t keypress_timer;
 xTaskHandle key_task_handle;
+xQueueHandle xQueueFrame;
 
 uint8  lan_buf[200];
 uint16 lan_buf_len;
@@ -350,6 +351,7 @@ uart_task(void *pvParameters)
     char *ptr = rcvs.recv_buf;
 
     rcvs.recv_len = 0;
+    xQueueFrame = xQueueCreate(16, sizeof(lora_event_t));
 
     for (;;) {
         if (xQueueReceive(xQueueUart, (void *)&e, delay)) {
@@ -368,7 +370,7 @@ uart_task(void *pvParameters)
             seq++;
             printf("seq: %d\n", seq);
             delay = portMAX_DELAY;
-			lgtty_read(0, &rcvs);
+			lgtty_read(0, &rcvs, xQueueFrame);
         }
     }
 
