@@ -11,7 +11,7 @@
 
 #define BUFFER_SIZE         1024
 #define HOST_SIZE           128
-#define FILE_SIZE           128
+#define FILE_SIZE           640
 
 typedef struct {
     int recv_len;

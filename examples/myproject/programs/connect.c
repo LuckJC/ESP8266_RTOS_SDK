@@ -21,7 +21,7 @@
 #define TEST_GET_AUTHTOKEN              "http://ui.iot.skadiseye.wang/aY7iBsxI2aOOk3BI"
 
 #define WEIXIN_PUSH_MSG                 "https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=%s"
-#define WEIXIN_POST_BODY                "{\"data\":{\"device\":{\"color\":\"#173177\",\"value\":\"°²·ÀÉè±¸\"},\"first\":{\"color\":\"#173177\",\"value\":\" ±¨¾¯\"},\"remark\":{\"color\":\"#140101\",\"value\":\"Ö÷»ú [Èı¶°211] µÄ°²·ÀÌ½²âÆ÷ ±¨¾¯\"},\"time\":{\"color\":\"#173177\",\"value\":\"2017-12-30 13:24:13\"}},\"template_id\":\"VQMra5Ii9eno5MueQg8557IPoySa4ZbzxN-E3pH5a8I\",\"topcolor\":\"#173177\",\"touser\":\"oBFWE1RXdmhkQ047x1Ct8JxTKtT0\",\"url\":\"\"}"
+#define WEIXIN_POST_BODY                "{\"data\":{\"device\":{\"color\":\"#173177\",\"value\":\"å®‰é˜²è®¾å¤‡\"},\"first\":{\"color\":\"#173177\",\"value\":\"æŠ¥è­¦\"},\"remark\":{\"color\":\"#140101\",\"value\":\"ä¸»æœº ã€ä¸‰æ ‹211ã€‘çš„å®‰é˜²æ¢æµ‹å™¨ æŠ¥è­¦\"},\"time\":{\"color\":\"#173177\",\"value\":\"2017-12-30 13:24:13\"}},\"template_id\":\"VQMra5Ii9eno5MueQg8557IPoySa4ZbzxN-E3pH5a8I\",\"topcolor\":\"#173177\",\"touser\":\"oBFWE1RXdmhkQ047x1Ct8JxTKtT0\",\"url\":\"\"}"
 
 
 LOCAL xTaskHandle connect_handle;
@@ -56,6 +56,11 @@ LOCAL void connect_thread(void *p)
     printf(req_buf);
     printf("\n");
     http_post(req_buf, WEIXIN_POST_BODY, &http_response);
+
+    for(;;) {
+        http_post(req_buf, WEIXIN_POST_BODY, &http_response);
+        vTaskDelay(2000 / portTICK_RATE_MS);
+    }
 
 #if 0
     for (;;) {
