@@ -23,7 +23,8 @@ GEN_BINS= eagle.app.v6.bin
 SPECIAL_MKTARGETS=$(APP_MKTARGETS)
 SUBDIRS=    \
 	user    \
-	programs
+	programs \
+	driver
 
 endif # } PDIR
 
@@ -47,7 +48,8 @@ endif
 
 COMPONENTS_eagle.app.v6 = \
 	user/libuser.a  \
-	programs/openssl_demo.a
+	programs/openssl_demo.a \
+	driver/libdriver.a
 
 LINKFLAGS_eagle.app.v6 =    \
     -L$(SDK_PATH)/lib       \

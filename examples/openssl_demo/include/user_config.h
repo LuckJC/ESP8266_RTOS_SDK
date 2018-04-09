@@ -27,8 +27,8 @@
 
 #include "openssl_demo.h"
 
-#define SSID "UTT-750"
-#define PASSWORD "espressif"
+#define SSID "TP-LINK_2.4G"
+#define PASSWORD "yj@123456."
 
 #endif
 

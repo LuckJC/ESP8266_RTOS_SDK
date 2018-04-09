@@ -471,7 +471,7 @@ user_init(void)
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
     //xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
-	xTaskCreate(key_intr_task, "key_intr_task", 512, NULL, 1, &key_task_handle);
-	xTaskCreate(uart_task, (uint8 const *)"uTask", 1024, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
+	xTaskCreate(key_intr_task, "key_intr_task", 128, NULL, 1, &key_task_handle);
+	xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 

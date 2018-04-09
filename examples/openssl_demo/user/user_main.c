@@ -99,6 +99,8 @@ void wifi_event_handler_cb(System_Event_t *event)
 *******************************************************************************/
 void user_init(void)
 {
+    UART_SetBaudrate(0, 921600);
+
     os_printf("SDK version:%s %d\n", system_get_sdk_version(), system_get_free_heap_size());
     wifi_set_opmode(STATION_MODE);
 

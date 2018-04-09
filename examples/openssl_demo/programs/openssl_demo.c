@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "espressif/c_types.h"
 #include "lwip/sockets.h"
+//#include "uart.h"
 
 #define OPENSSL_DEMO_THREAD_NAME "ssl_demo"
 #define OPENSSL_DEMO_THREAD_STACK_WORDS 2048
@@ -159,6 +160,7 @@ failed1:
 void user_conn_init(void)
 {
     int ret;
+    UART_SetBaudrate(0, 921600);
 
     ret = xTaskCreate(openssl_demo_thread,
                       OPENSSL_DEMO_THREAD_NAME,
