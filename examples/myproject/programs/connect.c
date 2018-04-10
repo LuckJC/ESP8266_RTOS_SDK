@@ -11,73 +11,93 @@
 #include "http.h"
 #include "lg_tty.h"
 
+#define USER_ID_SIZE    28
 
 #define TEST_BAIDU       "https://www.baidu.com/?tn=baiduhome_pg"
 #define TEST_WEIXIN      "https://api.weixin.qq.com"
 
 
 #define TEST_REPORT_CONNECT_OK          "http://ui.iot.skadiseye.wang/chip/api/test/linkwified?gateway_sn=%02X%02X%02X%02X%02X%02X"
-#define TEST_GET_USER_INFO              "http://ui.iot.skadiseye.wang/chip/api/test/gwdatas"
+#define TEST_GET_USER_INFO              "http://ui.iot.skadiseye.wang/chip/api/test/gwdatas?gateway_sn=%02X%02X%02X%02X%02X%02X"
 #define TEST_GET_AUTHTOKEN              "http://ui.iot.skadiseye.wang/aY7iBsxI2aOOk3BI"
 
-#define WEIXIN_PUSH_MSG                 "https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=%s"
-#define WEIXIN_POST_BODY                "{\"data\":{\"device\":{\"color\":\"#173177\",\"value\":\"安防设备\"},\"first\":{\"color\":\"#173177\",\"value\":\"报警\"},\"remark\":{\"color\":\"#140101\",\"value\":\"主机 【三栋211】的安防探测器 报警\"},\"time\":{\"color\":\"#173177\",\"value\":\"2017-12-30 13:24:13\"}},\"template_id\":\"VQMra5Ii9eno5MueQg8557IPoySa4ZbzxN-E3pH5a8I\",\"topcolor\":\"#173177\",\"touser\":\"oBFWE1RFA0XkQVM39Phd-EWBy_OE\",\"url\":\"\"}"
+#define WEIXIN_PUSH_MSG                 "https://api.weixin.qq.com/cgi-bin/message/template/send?access_token="
+#define WEIXIN_POST_BODY                "{\"data\":{\"device\":{\"color\":\"#173177\",\"value\":\"安防设备\"},\"first\":{\"color\":\"#173177\",\"value\":\"报警\"},\"remark\":{\"color\":\"#140101\",\"value\":\"主机 【三栋211】的安防探测器 报警\"},\"time\":{\"color\":\"#173177\",\"value\":\"2017-12-30 13:24:13\"}},\"template_id\":\"VQMra5Ii9eno5MueQg8557IPoySa4ZbzxN-E3pH5a8I\",\"topcolor\":\"#173177\",\"touser\":\"%s\",\"url\":\"\"}"
 
 
 LOCAL xTaskHandle connect_handle;
 LOCAL int do_con_exit;
-HttpResponse http_response;
-char AUTHTOKEN[512];
+LOCAL HttpResponse http_response;
+LOCAL char req_buf[80 + 512];
+LOCAL char body_buf[512];
+//LOCAL char AUTHTOKEN[512];
+LOCAL char USERINFO[USER_ID_SIZE + 1];
+
 
 extern xQueueHandle xQueueFrame;
 
-LOCAL void connect_thread(void *p)
+LOCAL void ICACHE_FLASH_ATTR 
+connect_thread(void *p)
 {
     int ret;
-    char rst_buf[256];
     uint8 sta_mac[6];
-    char req_buf[640];
+    //char req_buf[640];
 	lora_event_t e;
+    char *ptmp;
+    char *AUTHTOKEN = req_buf + strlen(WEIXIN_PUSH_MSG);
 
 	wifi_get_macaddr(STATION_IF, sta_mac);
-    sprintf(req_buf, TEST_REPORT_CONNECT_OK, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
 
     do {
+        /* connect mark */
+        sprintf(req_buf, TEST_REPORT_CONNECT_OK, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
         ret = http_get(req_buf, &http_response);
         if(ret < 0) {
             vTaskDelay(2000 / portTICK_RATE_MS);
             continue;
         }
-	
-    	ret = http_get(TEST_GET_AUTHTOKEN, &http_response);
+
+        /* get user info */
+        sprintf(req_buf, TEST_GET_USER_INFO, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
+    	ret = http_get(req_buf, &http_response);
         if(ret < 0) {
             vTaskDelay(2000 / portTICK_RATE_MS);
             continue;
         }
-
     	if(http_response.recv_len) {
-            memcpy(AUTHTOKEN, http_response.recv_buf, http_response.recv_len);
-            AUTHTOKEN[http_response.recv_len] = '\0';
-            printf("%s\n", AUTHTOKEN);
+            ptmp = http_response.recv_buf;
+            ptmp = (char*)strstr(ptmp,"\"openid\":");
+            ptmp += 10;
+            memcpy(USERINFO, ptmp, USER_ID_SIZE);
+            USERINFO[USER_ID_SIZE] = '\0';
+            printf("user id: %s\n", USERINFO);
         }
+        
         break;
     } while(!do_con_exit);
 
-    sprintf(req_buf, WEIXIN_PUSH_MSG, AUTHTOKEN);
 
     do {
-        ret = http_get(TEST_GET_AUTHTOKEN, &http_response);
+        /* get AUTHTOKEN */        
+        strcpy(req_buf, WEIXIN_PUSH_MSG);
+    	ret = http_get(TEST_GET_AUTHTOKEN, &http_response);
         if(ret < 0) {
-            vTaskDelay(2000 / portTICK_RATE_MS);
+            vTaskDelay(10000 / portTICK_RATE_MS);
             continue;
         }
         if(http_response.recv_len) {
             memcpy(AUTHTOKEN, http_response.recv_buf, http_response.recv_len);
             AUTHTOKEN[http_response.recv_len] = '\0';
-            printf("%s\n", AUTHTOKEN);
+            //printf("weixin authtoken: %s\n", AUTHTOKEN);
         }
-        http_post(req_buf, WEIXIN_POST_BODY, &http_response);
-        vTaskDelay(5000 / portTICK_RATE_MS);
+        
+        /* push weixin msg */
+        //printf("req:%s\n", req_buf);
+        sprintf(body_buf, WEIXIN_POST_BODY, USERINFO);
+        //printf("body:%s\n", body_buf);
+        http_post(req_buf, body_buf, &http_response);
+        printf("push test\n");
+        vTaskDelay(10000 / portTICK_RATE_MS);
     }while(!do_con_exit);
 
 CONNECT_FAIL1:
@@ -87,7 +107,8 @@ CONNECT_FAIL1:
     return ;
 }
 
-void user_conn_init(void)
+void ICACHE_FLASH_ATTR
+user_conn_init(void)
 {
     int ret;
 

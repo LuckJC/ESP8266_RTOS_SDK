@@ -34,11 +34,12 @@ typedef struct {
     SSL *ssl;
 } addr_cache_t;
 
-static addr_cache_t HTTP_CTX[ADDR_CACHE_SIZE];
-static u8 addr_index = 0;
+LOCAL addr_cache_t HTTP_CTX[ADDR_CACHE_SIZE];
+LOCAL u8 addr_index = 0;
 //LOCAL char tmp_buf[1024];
 
-static int add_http_ctx(const char *host, u32_t ip_addr, int port, int socket, SSL_CTX *ctx, SSL *ssl) {
+LOCAL int ICACHE_FLASH_ATTR
+add_http_ctx(const char *host, u32_t ip_addr, int port, int socket, SSL_CTX *ctx, SSL *ssl) {
     if(addr_index > ADDR_CACHE_SIZE || addr_index < 0) {
         printf("address cache space no enought!\n");
         return -1;
@@ -61,7 +62,8 @@ static int add_http_ctx(const char *host, u32_t ip_addr, int port, int socket, S
     return addr_index++;
 }
 
-static int index_of_http_ctx(const char *host) {
+LOCAL int ICACHE_FLASH_ATTR
+index_of_http_ctx(const char *host) {
     int i;
     for(i = 0; i < ADDR_CACHE_SIZE; i++) {
         if(!strncmp(HTTP_CTX[i].host, host, HOST_SIZE)) {
@@ -71,7 +73,8 @@ static int index_of_http_ctx(const char *host) {
     return -1;
 }
 
-static int get_http_ctx_tcp_info(int index, ip_addr_t *addr, int *port, int *socket) {
+LOCAL int ICACHE_FLASH_ATTR
+get_http_ctx_tcp_info(int index, ip_addr_t *addr, int *port, int *socket) {
 
     if(index < 0 || index >= ADDR_CACHE_SIZE) {
         return -1;
@@ -95,7 +98,8 @@ static int get_http_ctx_tcp_info(int index, ip_addr_t *addr, int *port, int *soc
     return index;
 }
 
-static int get_http_ctx_ssl_info(int index, SSL_CTX **ctx, SSL **ssl) {
+LOCAL int ICACHE_FLASH_ATTR
+get_http_ctx_ssl_info(int index, SSL_CTX **ctx, SSL **ssl) {
 
     if(index < 0 || index > ADDR_CACHE_SIZE) {
         return -1;
@@ -111,7 +115,8 @@ static int get_http_ctx_ssl_info(int index, SSL_CTX **ctx, SSL **ssl) {
     return index;
 }
 
-static int update_http_ctx_tcp_info(int index, u32_t ip_addr, int port, int socket) {
+LOCAL int ICACHE_FLASH_ATTR
+update_http_ctx_tcp_info(int index, u32_t ip_addr, int port, int socket) {
     if(index > ADDR_CACHE_SIZE || index < 0) {
         printf("update address cache failed: error index(%d)!\n", index);
         return -1;
@@ -130,7 +135,8 @@ static int update_http_ctx_tcp_info(int index, u32_t ip_addr, int port, int sock
     return index;
 }
 
-static int update_http_ctx_ssl_info(int index, SSL_CTX *ctx, SSL *ssl) {
+LOCAL int ICACHE_FLASH_ATTR
+update_http_ctx_ssl_info(int index, SSL_CTX *ctx, SSL *ssl) {
     if(index > ADDR_CACHE_SIZE || index < 0) {
         printf("update address cache failed: error index(%d)!\n", index);
         return -1;
@@ -154,7 +160,8 @@ static int update_http_ctx_ssl_info(int index, SSL_CTX *ctx, SSL *ssl) {
     return index;
 }
 
-static int http_tcpclient_create(const char *host, int port){
+LOCAL int ICACHE_FLASH_ATTR
+http_tcpclient_create(const char *host, int port){
     int ret;
     struct sockaddr_in sock_addr; 
     int socket_fd;
@@ -288,11 +295,13 @@ BIND_FAIL:
     return ret;
 }
 
-static void http_tcpclient_close(int socket){
+LOCAL void ICACHE_FLASH_ATTR
+http_tcpclient_close(int socket){
     close(socket);
 }
 
-static int http_parse_url(const char *url,char *host,char *file,int *port)
+LOCAL int ICACHE_FLASH_ATTR
+http_parse_url(const char *url,char *host,char *file,int *port)
 {
     char *ptr1,*ptr2;
     int len = 0;
@@ -340,7 +349,8 @@ static int http_parse_url(const char *url,char *host,char *file,int *port)
     return 0;
 }
 
-static int http_tcpclient_recv(int socket, HttpResponse *response) {
+LOCAL int ICACHE_FLASH_ATTR
+http_tcpclient_recv(int socket, HttpResponse *response) {
     int ret;   
     
     ret = recv(socket, response->recv_buf, BUFFER_SIZE-1,0);
@@ -356,7 +366,8 @@ static int http_tcpclient_recv(int socket, HttpResponse *response) {
     return ret;
 }
 
-static int http_tcpclient_send(int socket,char *buff,int size){
+LOCAL int ICACHE_FLASH_ATTR
+http_tcpclient_send(int socket,char *buff,int size){
     int sent=0,tmpres=0;
 
     while(sent < size){
@@ -370,7 +381,8 @@ static int http_tcpclient_send(int socket,char *buff,int size){
     return sent;
 }
 
-static int https_transmit(SSL *ssl, const char *requst, int len, HttpResponse *response){
+LOCAL int ICACHE_FLASH_ATTR
+https_transmit(SSL *ssl, const char *requst, int len, HttpResponse *response){
 
     int ret;
 
@@ -410,7 +422,8 @@ SSL_READ_FAIL:
     return ret;
 }
 
-static int http_parse_result(HttpResponse *response)
+LOCAL int ICACHE_FLASH_ATTR
+http_parse_result(HttpResponse *response)
 {
     char *ptmp = NULL; 
     char *lpbuf = response->recv_buf;
@@ -440,7 +453,8 @@ static int http_parse_result(HttpResponse *response)
     return 0;
 }
 
-int http_post(const char *url,const char *post_str, HttpResponse *response)
+int ICACHE_FLASH_ATTR
+http_post(const char *url,const char *post_str, HttpResponse *response)
 {
     int ret;
     int socket_fd = -1;
@@ -514,7 +528,8 @@ HTTP_POST_FAIL1:
     return ret;
 }
 
-int http_get(const char *url, HttpResponse *response)
+int ICACHE_FLASH_ATTR
+http_get(const char *url, HttpResponse *response)
 {
     int ret = 0;
     int socket_fd = -1;
