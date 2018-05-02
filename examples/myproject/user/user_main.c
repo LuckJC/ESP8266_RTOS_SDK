@@ -60,6 +60,7 @@ typedef struct _os_event_ {
     uint32 len;
 } os_event_t;
 
+LOCAL uint8 long_press_flag;
 LOCAL esp_udp ssdp_udp;
 LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
@@ -294,13 +295,14 @@ LOCAL void gpio_intr_handler(void *arg)
 	gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
 	GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status);
 	
-	if((gpio_status & GPIO_Pin_0))
+	if((gpio_status & GPIO_Pin_5) || (gpio_status & GPIO_Pin_13))
 		xTaskResumeFromISR(key_task_handle);
 }
 
 LOCAL void ICACHE_FLASH_ATTR
 key_long_press_time_callback(void)
 {
+	long_press_flag = 1;
     user_conn_destroy();
     smartconfig_stop();
     os_timer_disarm(&ssdp_time_serv);
@@ -308,11 +310,11 @@ key_long_press_time_callback(void)
 }
 
 
-void ICACHE_FLASH_ATTR
+LOCAL void ICACHE_FLASH_ATTR
 key_intr_task(void *pvParameters)
 {
 	uint32 tick_count, tick_count_cur;
-	int key_state = 0;
+	uint8 key1_state = 0, key2_state = 0;
 
 	os_timer_setfn(&keypress_timer, (os_timer_func_t *)key_long_press_time_callback, NULL);
 
@@ -321,17 +323,37 @@ key_intr_task(void *pvParameters)
 
 		_xt_isr_mask(1 << ETS_GPIO_INUM);
 		vTaskDelay(100 / portTICK_RATE_MS);
-		if(GPIO_INPUT_GET(GPIO_ID_PIN(0)) == 0) {
-			if(key_state == 0) {
-				key_state = 1;
-				printf("key down\n");
+		if(GPIO_INPUT_GET(GPIO_ID_PIN(5)) == 0) {
+			if(key1_state == 0) {
+				key1_state = 1;
+				printf("key1 down\n");
+				long_press_flag = 0;
 				os_timer_disarm(&keypress_timer);				
 				os_timer_arm(&keypress_timer, 3000, 0);//3s
 			}
 		} else {
-			if(key_state == 1) {
-				key_state = 0;
-				printf("key up\n");
+			if(key1_state == 1) {
+				key1_state = 0;
+				printf("key1 up\n");
+				if(!long_press_flag) {
+					os_timer_disarm(&keypress_timer);
+					/* send ID */
+					;
+				}
+			}
+		}
+		
+		if(GPIO_INPUT_GET(GPIO_ID_PIN(13)) == 0) {
+			if(key2_state == 0) {
+				key2_state = 1;
+				printf("key2 down\n");
+				os_timer_disarm(&keypress_timer);				
+				os_timer_arm(&keypress_timer, 3000, 0);//3s
+			}
+		} else {
+			if(key2_state == 1) {
+				key2_state = 0;
+				printf("key2 up\n");
 				os_timer_disarm(&keypress_timer);
 			}
 		}
@@ -434,11 +456,11 @@ uint32 user_rf_cal_sector_set(void)
     return rf_cal_sec;
 }
 
-void ICACHE_FLASH_ATTR
+LOCAL void ICACHE_FLASH_ATTR
 key_init()
 {
 	GPIO_ConfigTypeDef pin_config;
-	pin_config.GPIO_Pin = GPIO_Pin_0;
+	pin_config.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_13;
 	pin_config.GPIO_Mode = GPIO_Mode_Input;
 	pin_config.GPIO_Pullup = GPIO_PullUp_DIS;
 	pin_config.GPIO_IntrType = GPIO_PIN_INTR_ANYEDGE;
@@ -449,6 +471,52 @@ key_init()
 	//gpio_pin_wakeup_enable(GPIO_Pin_0, GPIO_PIN_INTR_ANYEDGE);
 	gpio_intr_handler_register(gpio_intr_handler, NULL);
 }
+
+LOCAL void ICACHE_FLASH_ATTR
+led_init()
+{
+	GPIO_ConfigTypeDef pin_config;
+	pin_config.GPIO_Pin = GPIO_Pin_14;
+	pin_config.GPIO_Mode = GPIO_Mode_Output;
+	pin_config.GPIO_Pullup = GPIO_PullUp_DIS;
+	gpio_config(&pin_config);
+}
+
+LOCAL inline void ICACHE_FLASH_ATTR
+set_led_on()
+{
+	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 1);
+}
+
+LOCAL inline void ICACHE_FLASH_ATTR
+set_led_off()
+{
+	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 0);
+}
+
+LOCAL void ICACHE_FLASH_ATTR
+buzz_init()
+{
+	GPIO_ConfigTypeDef pin_config;
+	pin_config.GPIO_Pin = GPIO_Pin_12;
+	pin_config.GPIO_Mode = GPIO_Mode_Output;
+	pin_config.GPIO_Pullup = GPIO_PullUp_DIS;
+	gpio_config(&pin_config);
+}
+
+LOCAL inline void ICACHE_FLASH_ATTR
+set_buzz_on()
+{
+	GPIO_OUTPUT_SET(GPIO_ID_PIN(12), 1);
+}
+
+LOCAL inline void ICACHE_FLASH_ATTR
+set_buzz_off()
+{
+	GPIO_OUTPUT_SET(GPIO_ID_PIN(12), 0);
+}
+
+
 
 /******************************************************************************
  * FunctionName : user_init
@@ -466,6 +534,12 @@ user_init(void)
     lgtty_work_mode(UART0);
 
 	key_init();
+	led_init();
+	set_led_on();
+	set_led_off();
+	buzz_init();
+	set_buzz_on();
+	set_buzz_off();
     /* need to set opmode before you set config */
     wifi_set_opmode(STATION_MODE);
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
