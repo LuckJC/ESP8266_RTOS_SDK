@@ -65,6 +65,8 @@ LOCAL esp_udp ssdp_udp;
 LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
 LOCAL os_timer_t keypress_timer;
+LOCAL os_timer_t blink_timer;
+LOCAL os_timer_t buzz_timer;
 xTaskHandle key_task_handle;
 xQueueHandle xQueueFrame;
 
@@ -472,6 +474,39 @@ key_init()
 	gpio_intr_handler_register(gpio_intr_handler, NULL);
 }
 
+typedef struct {
+	int on;
+	int off;
+	uint8 count;
+	uint8 state;
+}blink_time_t;
+
+LOCAL void ICACHE_FLASH_ATTR
+blink_time_callback(blink_time_t *btime)
+{
+	static uint8 count = 0;
+
+	if(btime->state) {
+		btime->state = 0;
+		os_timer_disarm(&blink_timer);
+		os_timer_setfn(&blink_timer, (os_timer_func_t *)blink_time_callback, btime);
+		os_timer_arm(&blink_timer, btime->off, 0);
+		GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 0);
+	} else {		
+		count++;
+		if(count == btime->count) {
+			count = 0;
+			os_timer_disarm(&blink_timer);
+			return;
+		}
+		btime->state =1;
+		os_timer_disarm(&blink_timer);
+		os_timer_setfn(&blink_timer, (os_timer_func_t *)blink_time_callback, btime);
+		os_timer_arm(&blink_timer, btime->off, 0);
+		GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 1);
+	}
+}
+
 LOCAL void ICACHE_FLASH_ATTR
 led_init()
 {
@@ -485,13 +520,31 @@ led_init()
 LOCAL inline void ICACHE_FLASH_ATTR
 set_led_on()
 {
+	os_timer_disarm(&blink_timer);
 	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 1);
 }
 
 LOCAL inline void ICACHE_FLASH_ATTR
 set_led_off()
 {
+	os_timer_disarm(&blink_timer);
 	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 0);
+}
+
+LOCAL inline void ICACHE_FLASH_ATTR
+set_led_blink(int on, int off, uint8 count)
+{
+	blink_time_t btime;
+
+	btime.on = on;
+	btime.off = off;
+	btime.count = count;
+	btime.state = 1;
+
+	os_timer_disarm(&blink_timer);
+	os_timer_setfn(&blink_timer, (os_timer_func_t *)blink_time_callback, &btime);
+	os_timer_arm(&blink_timer, on, 0);	
+	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 1);
 }
 
 LOCAL void ICACHE_FLASH_ATTR
@@ -545,7 +598,7 @@ user_init(void)
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
     //xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
-	xTaskCreate(key_intr_task, "key_intr_task", 128, NULL, 1, &key_task_handle);
+	xTaskCreate(key_intr_task, "key_intr_task", 128, NULL, tskIDLE_PRIORITY + 1, &key_task_handle);
 	xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 
