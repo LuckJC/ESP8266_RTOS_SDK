@@ -64,7 +64,9 @@ LOCAL uint8 long_press_flag;
 LOCAL esp_udp ssdp_udp;
 LOCAL struct espconn pssdpudpconn;
 LOCAL os_timer_t ssdp_time_serv;
-LOCAL os_timer_t keypress_timer;
+//LOCAL os_timer_t keypress_timer;
+LOCAL uint8 sta_mac[6];
+LOCAL uint8 channel;
 xTaskHandle key_task_handle;
 xQueueHandle xQueueFrame;
 
@@ -268,6 +270,12 @@ wifi_handle_event_cb(System_Event_t	*evt)
         }while(count--);
         //user_conn_init();
         #endif
+		lgtty_check_cmd(1, UART0, 0xA8);
+		vTaskDelay(60 / portTICK_RATE_MS);
+		lgtty_ID_cmd(1, UART0, 1, NULL, 0);
+		vTaskDelay(60 / portTICK_RATE_MS);
+		lgtty_channel_cmd(1, UART0, 1, 0);
+		vTaskDelay(60 / portTICK_RATE_MS);
         user_conn_init();
 		break;
 
@@ -314,7 +322,8 @@ LOCAL void ICACHE_FLASH_ATTR
 key_intr_task(void *pvParameters)
 {
 	uint32 tick_count, tick_count_cur;
-	uint8 key1_state = 0, key2_state = 0;
+	uint8 key1_state = 0, key2_state = 0;	
+	os_timer_t keypress_timer;
 
 	os_timer_setfn(&keypress_timer, (os_timer_func_t *)key_long_press_time_callback, NULL);
 
@@ -338,7 +347,10 @@ key_intr_task(void *pvParameters)
 				if(!long_press_flag) {
 					os_timer_disarm(&keypress_timer);
 					/* send ID */
-					;
+					lgtty_ID_cmd(1, UART0, 0, sta_mac, 3);
+					vTaskDelay(60 / portTICK_RATE_MS);
+					lgtty_channel_cmd(1, UART0, 0, channel);
+					vTaskDelay(60 / portTICK_RATE_MS);
 				}
 			}
 		}
@@ -347,14 +359,15 @@ key_intr_task(void *pvParameters)
 			if(key2_state == 0) {
 				key2_state = 1;
 				printf("key2 down\n");
-				os_timer_disarm(&keypress_timer);				
-				os_timer_arm(&keypress_timer, 3000, 0);//3s
+				//os_timer_disarm(&keypress_timer);				
+				//os_timer_arm(&keypress_timer, 3000, 0);//3s
 			}
 		} else {
 			if(key2_state == 1) {
 				key2_state = 0;
 				printf("key2 up\n");
-				os_timer_disarm(&keypress_timer);
+				lgtty_check_cmd(1, UART0, 0xA8);
+				//os_timer_disarm(&keypress_timer);
 			}
 		}
 		_xt_isr_unmask(1 << ETS_GPIO_INUM);
@@ -533,6 +546,8 @@ user_init(void)
 
     lgtty_work_mode(UART0);
 
+	wifi_get_macaddr(STATION_IF, sta_mac);
+
 	key_init();
 	led_init();
 	set_led_on();
@@ -540,7 +555,8 @@ user_init(void)
 	buzz_init();
 	set_buzz_on();
 	set_buzz_off();
-    /* need to set opmode before you set config */
+
+	/* need to set opmode before you set config */
     wifi_set_opmode(STATION_MODE);
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 

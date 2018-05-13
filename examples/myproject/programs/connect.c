@@ -32,7 +32,43 @@ LOCAL char req_buf[80 + 512];
 LOCAL char body_buf[512];
 //LOCAL char AUTHTOKEN[512];
 LOCAL char USERINFO[USER_ID_SIZE + 1];
+LOCAL uint8 sta_mac[6];
 
+#if 0
+LOCAL void ICACHE_FLASH_ATTR
+push_weixin_msg()
+{
+	char *ptmp;
+	int ret;
+
+	do {
+		/* connect mark */
+		sprintf(req_buf, TEST_REPORT_CONNECT_OK, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
+		ret = http_get(req_buf, &http_response);
+		if(ret < 0) {
+			vTaskDelay(2000 / portTICK_RATE_MS);
+			continue;
+		}
+		
+		/* get user info */
+		sprintf(req_buf, TEST_GET_USER_INFO, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
+		ret = http_get(req_buf, &http_response);
+		if(ret < 0) {
+			vTaskDelay(2000 / portTICK_RATE_MS);
+			continue;
+		}
+		if(http_response.recv_len) {
+			ptmp = http_response.recv_buf;
+			ptmp = (char*)strstr(ptmp,"\"openid\":");
+			ptmp += 10;
+			memcpy(USERINFO, ptmp, USER_ID_SIZE);
+			USERINFO[USER_ID_SIZE] = '\0';
+			printf("user id: %s\n", USERINFO);
+		}
+		break;
+	}while(1);
+}
+#endif
 
 extern xQueueHandle xQueueFrame;
 
@@ -40,10 +76,9 @@ LOCAL void ICACHE_FLASH_ATTR
 connect_thread(void *p)
 {
     int ret;
-    uint8 sta_mac[6];
-    //char req_buf[640];
+	char *ptmp;
 	lora_event_t e;
-    char *ptmp;
+    
     char *AUTHTOKEN = req_buf + strlen(WEIXIN_PUSH_MSG);
 
 	wifi_get_macaddr(STATION_IF, sta_mac);
@@ -76,29 +111,19 @@ connect_thread(void *p)
         break;
     } while(!do_con_exit);
 
-
-    do {
-        /* get AUTHTOKEN */        
-        strcpy(req_buf, WEIXIN_PUSH_MSG);
-    	ret = http_get(TEST_GET_AUTHTOKEN, &http_response);
-        if(ret < 0) {
-            vTaskDelay(10000 / portTICK_RATE_MS);
-            continue;
-        }
-        if(http_response.recv_len) {
-            memcpy(AUTHTOKEN, http_response.recv_buf, http_response.recv_len);
-            AUTHTOKEN[http_response.recv_len] = '\0';
-            //printf("weixin authtoken: %s\n", AUTHTOKEN);
-        }
-        
-        /* push weixin msg */
-        //printf("req:%s\n", req_buf);
-        sprintf(body_buf, WEIXIN_POST_BODY, USERINFO);
-        //printf("body:%s\n", body_buf);
-        http_post(req_buf, body_buf, &http_response);
-        printf("push test\n");
-        vTaskDelay(10000 / portTICK_RATE_MS);
-    }while(!do_con_exit);
+	do {
+		if (xQueueReceive(xQueueFrame, (void *)&e, (portTickType)portMAX_DELAY)) {
+			switch (e.event) {
+				case LORA_EVENT_DATA_FRAME:
+					printf("recevie sensor data.\n");					
+					//push_weixin_msg();
+					break;
+		
+				default:
+					break;
+			}
+		}
+	}while(!do_con_exit);
 
 CONNECT_FAIL1:
     printf("task exit\n");

@@ -9,7 +9,7 @@ TTY_MOD_STATE lgtty_state = ESTAT_INIT;
 time_t startup_time = 0;
 int do_exit = 0;
 
-void __data_dump(const char *prompt, const unsigned char *data, int len)
+void ICACHE_FLASH_ATTR __data_dump(const char *prompt, const unsigned char *data, int len)
 {
 	int i;
 	int prev;
@@ -54,7 +54,7 @@ void __data_dump(const char *prompt, const unsigned char *data, int len)
 }
 
 
-int lgtty_write(int fd, const void *buffer, uint8 len)
+int ICACHE_FLASH_ATTR lgtty_write(int fd, const void *buffer, uint8 len)
 {
 	int i;
 	uint8 *buf = (uint8 *)buffer;
@@ -91,7 +91,7 @@ STATE_PROC state_proc_s[ESTAT_OVER+1] = {
 static void lgtty_checksum(const unsigned char *buffer, int blen, unsigned char *output);
 
 
-static int check_recv(const char *buffer, int msglen)
+static int ICACHE_FLASH_ATTR check_recv(const char *buffer, int msglen)
 {
 	unsigned char code = buffer[3];
 	if (code != CMD_CODE_A0) {
@@ -109,7 +109,7 @@ static int check_recv(const char *buffer, int msglen)
 	return 0;
 }
 
-static int modver_recv(const char *buffer, int msglen)
+static int ICACHE_FLASH_ATTR modver_recv(const char *buffer, int msglen)
 {
 	unsigned char code = buffer[3];
 	if (code != CMD_CODE_A1) {
@@ -123,7 +123,7 @@ static int modver_recv(const char *buffer, int msglen)
 	return 0;
 }
 
-static int test_recv(const char *buffer, int msglen)
+static int ICACHE_FLASH_ATTR test_recv(const char *buffer, int msglen)
 {
 	unsigned char code = buffer[3];
 	if (code != CMD_CODE_A2) {
@@ -137,7 +137,7 @@ static int test_recv(const char *buffer, int msglen)
 	return 0;
 }
 
-static int ID_recv(const char *buffer, int msglen)
+static int ICACHE_FLASH_ATTR ID_recv(const char *buffer, int msglen)
 {
 	unsigned char code = buffer[3];
 	if (code != CMD_CODE_A3) {
@@ -151,7 +151,7 @@ static int ID_recv(const char *buffer, int msglen)
 	return 0;
 }
 
-static int channel_recv(const char *buffer, int msglen)
+static int ICACHE_FLASH_ATTR channel_recv(const char *buffer, int msglen)
 {
 	unsigned char code = buffer[3];
 	if (code != CMD_CODE_A4) {
@@ -165,7 +165,7 @@ static int channel_recv(const char *buffer, int msglen)
 	return 0;
 }
 
-static int IO_recv(const char *buffer, int msglen)
+static int ICACHE_FLASH_ATTR IO_recv(const char *buffer, int msglen)
 {
 	unsigned char code = buffer[3];
 	if (code != CMD_CODE_A5) {
@@ -179,7 +179,7 @@ static int IO_recv(const char *buffer, int msglen)
 	return 0;
 }
 
-static int check_timeout(void)
+static int ICACHE_FLASH_ATTR check_timeout(void)
 {
 	/*time_t curr = time(NULL);
 	time_t last = startup_time + 10;
@@ -193,7 +193,7 @@ static int check_timeout(void)
 	return 0;
 }
 
-static void error_check(int failed)
+static void ICACHE_FLASH_ATTR error_check(int failed)
 {
 	static int fail_cont = 0;
 	if (failed <= 0)  {
@@ -208,7 +208,7 @@ static void error_check(int failed)
 	}
 }
 
-static int Y_odd_parity_check(const unsigned char *buffer, int blen, unsigned char ycheck)
+static int ICACHE_FLASH_ATTR Y_odd_parity_check(const unsigned char *buffer, int blen, unsigned char ycheck)
 {
 	int j;
 	int pos = 1;
@@ -225,7 +225,7 @@ static int Y_odd_parity_check(const unsigned char *buffer, int blen, unsigned ch
 	return -1;
 }
 
-static int X_odd_parity_check(const unsigned char *buffer, int blen, unsigned char xcheck)
+static int ICACHE_FLASH_ATTR X_odd_parity_check(const unsigned char *buffer, int blen, unsigned char xcheck)
 {
 	unsigned char result = 0;
 	int i;
@@ -313,7 +313,7 @@ static int dev_frame_process(const char *buffer, int msglen)
 // equal the minimum cmd frame length
 #define MIN_FRAME_LEN  (ID_LEN+3)
 
-int lgtty_read(int fd, LGTTY_RECVS *rcvs, xQueueHandle queue)
+int ICACHE_FLASH_ATTR lgtty_read(int fd, LGTTY_RECVS *rcvs, xQueueHandle queue)
 {
 	char *ptr = rcvs->recv_buf + rcvs->recv_len;
 	int read_len = 0;
@@ -455,7 +455,7 @@ _RFS_END:
 }
 
 // Calculate the checksum to @output
-static void lgtty_checksum(const unsigned char *buffer, int blen, unsigned char *output)
+static void ICACHE_FLASH_ATTR lgtty_checksum(const unsigned char *buffer, int blen, unsigned char *output)
 {
 	int i;
 	unsigned int checksum = 0;
@@ -466,7 +466,7 @@ static void lgtty_checksum(const unsigned char *buffer, int blen, unsigned char 
 	*output = (unsigned char)checksum;
 }
 
-static int switch_matching_rate(int fd)
+static int ICACHE_FLASH_ATTR switch_matching_rate(int fd)
 {
 	int ret;
 	unsigned char sendbuf[8];
@@ -484,7 +484,7 @@ static int switch_matching_rate(int fd)
 	return -1;
 }
 
-static int switch_work_mode(int fd)
+static int ICACHE_FLASH_ATTR switch_work_mode(int fd)
 {
 	int ret;
 	unsigned char sendbuf[8];
@@ -503,7 +503,7 @@ static int switch_work_mode(int fd)
 }
 
 // Begin Matching rate  (in 5s )
-int lgtty_matching_rate(int fd)
+int ICACHE_FLASH_ATTR lgtty_matching_rate(int fd)
 {
 	int ret =0, trycnt = 0;
 
@@ -533,7 +533,7 @@ SUCC_MATCH_RATE:
 }
 
 // Switch to normal work mode
-int lgtty_work_mode(int fd)
+int ICACHE_FLASH_ATTR lgtty_work_mode(int fd)
 {
 	int ret =0, trycnt = 0;
 
@@ -549,7 +549,7 @@ int lgtty_work_mode(int fd)
 	return -2;
 }
 
-int lgtty_check_cmd(int change_state, int fd, unsigned char value)
+int ICACHE_FLASH_ATTR lgtty_check_cmd(int change_state, int fd, unsigned char value)
 {
 	int ret =0, trycnt = 0;
 	unsigned char sendbuf[8];
@@ -580,7 +580,7 @@ _CHECK_RCV:
 	return 0;
 }
 
-int lgtty_modver_cmd(int change_state, int fd, unsigned char value)
+int ICACHE_FLASH_ATTR lgtty_modver_cmd(int change_state, int fd, unsigned char value)
 {
 	int ret = 0, trycnt = 0, msglen = 0;
 	unsigned char sendbuf[16];
@@ -628,7 +628,7 @@ _CHECK_RCV:
 
 // A2 cmd 
 // @model: 3-- quit test state, 0-- quit test state, 1-- recv test, 2-- send test; 
-int lgtty_test_cmd(int change_state, int fd, int model, unsigned char *out, int vlen)
+int ICACHE_FLASH_ATTR lgtty_test_cmd(int change_state, int fd, int model, unsigned char *out, int vlen)
 {
 	int ret =0, trycnt = 0, msglen = 0;
 	unsigned char sendbuf[16];
@@ -678,7 +678,7 @@ _CHECK_RCV:
 
 // A3 cmd 
 // @op:  1: query ID,  2: set ID;  
-int lgtty_ID_cmd(int change_state, int fd, int op, unsigned char *out, int vlen)
+int ICACHE_FLASH_ATTR lgtty_ID_cmd(int change_state, int fd, int op, unsigned char *out, int vlen)
 {
 	int ret =0, trycnt = 0, msglen = 0;
 	unsigned char sendbuf[16];
@@ -722,7 +722,7 @@ _CHECK_RCV:
 
 // decimal  to  bcd code 
 //	if @vlaue = 99999, then @bytes = 3;  if @vlaue = 199999, then @bytes = 4
-void decimal_to_bcd(unsigned int value, unsigned char *out, int bytes)
+void ICACHE_FLASH_ATTR decimal_to_bcd(unsigned int value, unsigned char *out, int bytes)
 {
 	int i = bytes - 1;
 	unsigned int wei = 10;
@@ -743,7 +743,7 @@ void decimal_to_bcd(unsigned int value, unsigned char *out, int bytes)
 
 // A4 cmd 
 // @op:  1: query channel,  2: set channel;  
-int lgtty_channel_cmd(int change_state, int fd, int op, int channel)
+int ICACHE_FLASH_ATTR lgtty_channel_cmd(int change_state, int fd, int op, int channel)
 {
 	int ret =0, trycnt = 0, msglen = 0;
 	unsigned char sendbuf[16];
@@ -788,7 +788,7 @@ _CHECK_RCV:
 // A5 cmd 
 // @op:  1: query all I/O,  2: set all I/O; 
 // @opcode:  0x00: set input or output model  for I/O,  0x01: set high or low bit for I/O 
-int lgtty_io_cmd(int change_state, int fd, int op, unsigned char opcode, unsigned char addr, unsigned char data)
+int ICACHE_FLASH_ATTR lgtty_io_cmd(int change_state, int fd, int op, unsigned char opcode, unsigned char addr, unsigned char data)
 {
 	int ret = 0, trycnt = 0, msglen = 0;
 	unsigned char sendbuf[16];
