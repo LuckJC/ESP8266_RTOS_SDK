@@ -553,6 +553,8 @@ led_task(void *pvParameters)
 	led_init();
 	buzz_init();
 	for(;;) {
+		printf("{{%02X%02X%02X%02X%02X%02X}}\n",
+					sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
 		switch (net_state) {
 			case ESP_SYSTEM_START:
 				set_led_on();
