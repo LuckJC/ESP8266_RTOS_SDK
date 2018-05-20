@@ -34,22 +34,15 @@ LOCAL char body_buf[512];
 LOCAL char USERINFO[USER_ID_SIZE + 1];
 LOCAL uint8 sta_mac[6];
 
-#if 0
+#if 1
 LOCAL void ICACHE_FLASH_ATTR
 push_weixin_msg()
 {
 	char *ptmp;
 	int ret;
+	char *AUTHTOKEN = req_buf + strlen(WEIXIN_PUSH_MSG);
 
 	do {
-		/* connect mark */
-		sprintf(req_buf, TEST_REPORT_CONNECT_OK, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
-		ret = http_get(req_buf, &http_response);
-		if(ret < 0) {
-			vTaskDelay(2000 / portTICK_RATE_MS);
-			continue;
-		}
-		
 		/* get user info */
 		sprintf(req_buf, TEST_GET_USER_INFO, sta_mac[0], sta_mac[1], sta_mac[2], sta_mac[3], sta_mac[4], sta_mac[5]);
 		ret = http_get(req_buf, &http_response);
@@ -65,6 +58,22 @@ push_weixin_msg()
 			USERINFO[USER_ID_SIZE] = '\0';
 			printf("user id: %s\n", USERINFO);
 		}
+		
+        /* get AUTHTOKEN */
+        strcpy(req_buf, WEIXIN_PUSH_MSG);
+    	ret = http_get(TEST_GET_AUTHTOKEN, &http_response);
+        if(ret < 0) {
+            vTaskDelay(2000 / portTICK_RATE_MS);
+            continue;
+        }
+        if(http_response.recv_len) {
+            memcpy(AUTHTOKEN, http_response.recv_buf, http_response.recv_len);
+            AUTHTOKEN[http_response.recv_len] = '\0';
+        }
+        
+        /* push weixin msg */
+        sprintf(body_buf, WEIXIN_POST_BODY, USERINFO);
+        http_post(req_buf, body_buf, &http_response);	
 		break;
 	}while(1);
 }
@@ -116,7 +125,7 @@ connect_thread(void *p)
 			switch (e.event) {
 				case LORA_EVENT_DATA_FRAME:
 					printf("recevie sensor data.\n");					
-					//push_weixin_msg();
+					push_weixin_msg();
 					break;
 		
 				default:
