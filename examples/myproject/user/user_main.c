@@ -68,11 +68,19 @@ LOCAL os_timer_t ssdp_time_serv;
 LOCAL uint8 sta_mac[6];
 LOCAL uint8 channel;
 xTaskHandle key_task_handle;
+xTaskHandle led_task_handle;
 xQueueHandle xQueueFrame;
 
 uint8  lan_buf[200];
 uint16 lan_buf_len;
 uint8  udp_sent_cnt = 0;
+uint8 net_state = 0;
+
+#define ESP_SYSTEM_START	0	/* blink 1 cycle: 500ms + 500ms*/
+#define ESP_SMART_CONFIG	1	/* blink : 200ms + 500ms*/
+#define ESP_CONNECT			2	/* on */
+#define ESP_DISCONNECT		3	/* off */
+#define ESP_NET_ERROR		4	/* blink : 400ms + 1000ms */
 
 extern xTaskHandle xUartTaskHandle;
 extern xQueueHandle xQueueUart;
@@ -84,6 +92,8 @@ const airkiss_config_t akconf =
 	(airkiss_memcmp_fn)&memcmp,
 	0,
 };
+
+void change_net_state(int state);
 
 LOCAL void ICACHE_FLASH_ATTR
 airkiss_wifilan_time_callback(void)
@@ -245,6 +255,7 @@ wifi_handle_event_cb(System_Event_t	*evt)
 			evt->event_info.disconnected.ssid,
 			evt->event_info.disconnected.reason);
         user_conn_destroy();
+		change_net_state(ESP_DISCONNECT);
 		break;
 		
 	case EVENT_STAMODE_AUTHMODE_CHANGE:
@@ -276,6 +287,7 @@ wifi_handle_event_cb(System_Event_t	*evt)
 		vTaskDelay(60 / portTICK_RATE_MS);
 		lgtty_channel_cmd(1, UART0, 1, 0);
 		vTaskDelay(60 / portTICK_RATE_MS);
+		change_net_state(ESP_CONNECT);
         user_conn_init();
 		break;
 
@@ -314,6 +326,7 @@ key_long_press_time_callback(void)
     user_conn_destroy();
     smartconfig_stop();
     os_timer_disarm(&ssdp_time_serv);
+	change_net_state(ESP_SMART_CONFIG);
 	smartconfig_start(smartconfig_done);
 }
 
@@ -366,7 +379,7 @@ key_intr_task(void *pvParameters)
 			if(key2_state == 1) {
 				key2_state = 0;
 				printf("key2 up\n");
-				lgtty_check_cmd(1, UART0, 0xA8);
+				//lgtty_check_cmd(1, UART0, 0xA8);
 				//os_timer_disarm(&keypress_timer);
 			}
 		}
@@ -498,13 +511,13 @@ led_init()
 LOCAL inline void ICACHE_FLASH_ATTR
 set_led_on()
 {
-	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 1);
+	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 0);
 }
 
 LOCAL inline void ICACHE_FLASH_ATTR
 set_led_off()
 {
-	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 0);
+	GPIO_OUTPUT_SET(GPIO_ID_PIN(14), 1);
 }
 
 LOCAL void ICACHE_FLASH_ATTR
@@ -529,7 +542,51 @@ set_buzz_off()
 	GPIO_OUTPUT_SET(GPIO_ID_PIN(12), 0);
 }
 
+void change_net_state(int state)
+{
+	net_state = state;
+}
 
+LOCAL void ICACHE_FLASH_ATTR
+led_task(void *pvParameters)
+{
+	led_init();
+	buzz_init();
+	for(;;) {
+		switch (net_state) {
+			case ESP_SYSTEM_START:
+				set_led_on();
+				set_buzz_on();
+				vTaskDelay(1000 / portTICK_RATE_MS);
+				set_led_off();
+				set_buzz_off();
+				vTaskDelay(1000 / portTICK_RATE_MS);
+				net_state = 3;
+				break;
+			case ESP_SMART_CONFIG:
+				set_led_on();
+				vTaskDelay(200 / portTICK_RATE_MS);
+				set_led_off();
+				vTaskDelay(500 / portTICK_RATE_MS);
+				break;
+			case ESP_CONNECT:
+				set_led_on();
+				vTaskDelay(2000 / portTICK_RATE_MS);
+				break;
+			case ESP_DISCONNECT:
+				set_led_off();
+				vTaskDelay(2000 / portTICK_RATE_MS);
+				break;
+			case ESP_NET_ERROR:
+				set_led_on();
+				vTaskDelay(400 / portTICK_RATE_MS);
+				set_led_off();
+				vTaskDelay(1000 / portTICK_RATE_MS);
+				break;
+		}
+	}
+	vTaskDelete(NULL);
+}
 
 /******************************************************************************
  * FunctionName : user_init
@@ -549,19 +606,13 @@ user_init(void)
 	wifi_get_macaddr(STATION_IF, sta_mac);
 
 	key_init();
-	led_init();
-	set_led_on();
-	set_led_off();
-	buzz_init();
-	set_buzz_on();
-	set_buzz_off();
 
 	/* need to set opmode before you set config */
     wifi_set_opmode(STATION_MODE);
 	wifi_set_event_handler_cb(wifi_handle_event_cb);
 
-    //xTaskCreate(smartconfig_task, "smartconfig_task", 256, NULL, 2, NULL);
 	xTaskCreate(key_intr_task, "key_intr_task", 128, NULL, 1, &key_task_handle);
+	xTaskCreate(led_task, "led_task", 128, NULL, tskIDLE_PRIORITY + 3, &led_task_handle);
 	xTaskCreate(uart_task, (uint8 const *)"uTask", 512, NULL, tskIDLE_PRIORITY + 2, &xUartTaskHandle);
 }
 
